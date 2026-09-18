@@ -1,6 +1,6 @@
 {
-  "setupStatus": "pending-owner-decision",
-  "publicRepository": null,
+  "setupStatus": "pending-npm-owner-setup",
+  "publicRepository": "Tech-Adventures-LLC/intake-site-adapter",
   "environment": "npm-release",
   "workflowFilename": "release-adapter.yml",
   "npmPackage": "@tech-adventures-llc/intake-site-adapter",

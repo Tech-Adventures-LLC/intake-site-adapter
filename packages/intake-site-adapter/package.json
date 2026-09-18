@@ -3,6 +3,11 @@
   "version": "1.1.0",
   "license": "Apache-2.0",
   "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Tech-Adventures-LLC/intake-site-adapter.git",
+    "directory": "packages/intake-site-adapter"
+  },
   "publishConfig": {
     "registry": "https://registry.npmjs.org",
     "access": "public"
