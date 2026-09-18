@@ -1,0 +1,13 @@
+{
+  "setupStatus": "pending-owner-decision",
+  "publicRepository": null,
+  "environment": "npm-release",
+  "workflowFilename": "release-adapter.yml",
+  "npmPackage": "@tech-adventures-llc/intake-site-adapter",
+  "version": "1.1.0",
+  "intendedPublisherAction": "publish",
+  "packageExistence": "unverified-owner-state",
+  "firstPackageBootstrap": "unresolved",
+  "trustedPublisher": "unverified",
+  "accountTwoFactor": "unverified"
+}

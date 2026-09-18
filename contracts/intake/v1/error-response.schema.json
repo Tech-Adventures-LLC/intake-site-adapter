@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://intake.fltechadventures.com/contracts/intake/v1/error-response.schema.json",
+  "title": "Universal Intake v1 safe error response",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["ok", "error"],
+  "properties": {
+    "ok": { "const": false },
+    "error": { "type": "string", "pattern": "^[a-z][a-z0-9_]{0,79}$" },
+    "request_id": { "type": "string", "minLength": 8, "maxLength": 100 },
+    "retry_after_seconds": { "type": "integer", "minimum": 1, "maximum": 3600 }
+  }
+}

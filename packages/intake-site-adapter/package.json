@@ -1,0 +1,41 @@
+{
+  "name": "@tech-adventures-llc/intake-site-adapter",
+  "version": "1.1.0",
+  "license": "Apache-2.0",
+  "type": "module",
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org",
+    "access": "public"
+  },
+  "types": "./index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "import": "./index.js"
+    },
+    "./verify-route": {
+      "types": "./verify-route.d.ts",
+      "import": "./verify-route.js"
+    }
+  },
+  "bin": {
+    "intake-verify-canary-route": "verify-route.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "files": [
+    "index.js",
+    "validation.js",
+    "index.d.ts",
+    "verify-route.js",
+    "verify-route-worker.js",
+    "verify-route.d.ts",
+    "README.md",
+    "SECURITY.md",
+    "CHANGELOG.md",
+    "LICENSE",
+    "NOTICE"
+  ],
+  "description": "Bounded server-side lead and canary adapter for intake-contract-v1"
+}

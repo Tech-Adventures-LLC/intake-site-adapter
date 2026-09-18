@@ -1,0 +1,45 @@
+# INACTIVE REVIEW TEMPLATE. Do not install under .github/workflows until the
+# public source and owner-side npm bootstrap/settings decision are approved.
+# The preparation guard always blocks; activation needs a fresh reviewed change.
+name: Publish reviewed adapter
+on:
+  workflow_dispatch:
+    inputs:
+      reviewed_source_sha:
+        description: Exact owner-reviewed public source commit
+        required: true
+      reviewed_tarball_sha256:
+        description: Exact SHA256 of the reviewed tarball
+        required: true
+permissions:
+  contents: read
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: npm-release
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444
+        with:
+          node-version: 22.23.2
+      - run: npm ci --ignore-scripts
+      - run: npm test
+      - run: npm run adapter:pack -- --output reviewed-artifact
+      - name: Verify reviewed artifact and real GitHub protection; block pending npm setup
+        env:
+          REVIEWED_SOURCE_SHA: ${{ inputs.reviewed_source_sha }}
+          REVIEWED_TARBALL_SHA256: ${{ inputs.reviewed_tarball_sha256 }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node scripts/check-adapter-release.js reviewed-artifact/tech-adventures-llc-intake-site-adapter-1.1.0.tgz
+      # No publication command is enabled. After separately approved owner setup,
+      # verify npm>=11.15.0, exact public repository/workflow/environment trust,
+      # account2FA and explicit --allow-publish action. New trust defaults to
+      # staged publishing; stage cannot bootstrap a missing package either.
+      # A later approved workflow may publish the reviewed .tgz with --provenance.
+      # Never replace OIDC with a permanent token or disable provenance.

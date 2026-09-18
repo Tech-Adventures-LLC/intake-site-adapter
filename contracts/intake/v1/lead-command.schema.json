@@ -1,0 +1,132 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://intake.fltechadventures.com/contracts/intake/v1/lead-command.schema.json",
+  "title": "Universal Intake v1 lead command",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["type", "contact"],
+  "properties": {
+    "type": { "const": "project_inquiry" },
+    "contact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "email"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1, "maxLength": 160 },
+        "email": { "type": "string", "minLength": 3, "maxLength": 320, "pattern": "^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$" },
+        "phone": { "type": ["string", "null"], "maxLength": 40 }
+      }
+    },
+    "details": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "company": { "type": "string", "maxLength": 160 },
+        "location": { "type": "string", "maxLength": 160 },
+        "project_type": { "type": "string", "maxLength": 80 },
+        "timeline": { "type": "string", "maxLength": 80 },
+        "show_name": { "type": "string", "maxLength": 160 },
+        "booth_size": { "type": "string", "maxLength": 80 },
+        "postal_code": { "type": "string", "maxLength": 16 },
+        "vehicle_year": { "type": "string", "maxLength": 4 },
+        "vehicle_make_model": { "type": "string", "maxLength": 160 },
+        "vehicle_type": { "type": "string", "maxLength": 80 },
+        "tint_coverage": { "type": "string", "maxLength": 160 },
+        "windshield": { "type": "string", "maxLength": 80 },
+        "tint_removal": { "type": "string", "maxLength": 80 },
+        "service_location": { "type": "string", "maxLength": 160 },
+        "preferred_shade": { "type": "string", "maxLength": 80 },
+        "estimated_duration": { "type": "string", "maxLength": 80 },
+        "notes": { "type": "string", "maxLength": 1200 },
+        "message": { "type": "string", "maxLength": 3000 }
+      }
+    },
+    "attribution": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "source": { "type": "string", "maxLength": 160 },
+        "medium": { "type": "string", "maxLength": 160 },
+        "campaign": { "type": "string", "maxLength": 160 },
+        "term": { "type": "string", "maxLength": 160 },
+        "content": { "type": "string", "maxLength": 160 },
+        "page": { "type": "string", "maxLength": 500 },
+        "landing_page": { "type": "string", "maxLength": 240 },
+        "referrer": { "type": "string", "maxLength": 500 },
+        "utm_source": { "type": "string", "maxLength": 160 },
+        "utm_medium": { "type": "string", "maxLength": 160 },
+        "utm_campaign": { "type": "string", "maxLength": 160 },
+        "utm_term": { "type": "string", "maxLength": 160 },
+        "utm_content": { "type": "string", "maxLength": 160 },
+        "first_touch_at": { "type": "string", "maxLength": 40 },
+        "last_source": { "type": "string", "maxLength": 160 },
+        "last_medium": { "type": "string", "maxLength": 160 },
+        "last_campaign": { "type": "string", "maxLength": 160 },
+        "last_term": { "type": "string", "maxLength": 160 },
+        "last_content": { "type": "string", "maxLength": 160 },
+        "last_landing_page": { "type": "string", "maxLength": 240 },
+        "last_referrer": { "type": "string", "maxLength": 500 },
+        "last_touch_at": { "type": "string", "maxLength": 40 },
+        "click_id_type": { "type": "string", "maxLength": 24 },
+        "click_id": { "type": "string", "maxLength": 240 },
+        "ga_client_id": { "type": "string", "maxLength": 80 },
+        "ga_session_id": { "type": "string", "maxLength": 80 },
+        "tracking_id": { "type": "string", "maxLength": 80 },
+        "navigation_path": { "type": "string", "maxLength": 5000 }
+      }
+    },
+    "consent": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "contact_request": { "type": "boolean" },
+        "phone_contact": { "type": "boolean" },
+        "sms": { "type": "boolean" },
+        "disclosure_version": { "type": "string", "maxLength": 64 }
+      },
+      "allOf": [
+        { "if": { "properties": { "sms": { "const": true } }, "required": ["sms"] }, "then": { "properties": { "phone_contact": { "const": true }, "disclosure_version": { "type": "string", "minLength": 1, "maxLength": 64, "pattern": "\\S" } }, "required": ["phone_contact", "disclosure_version"] } },
+        { "if": { "properties": { "phone_contact": { "const": true } }, "required": ["phone_contact"] }, "then": { "properties": { "disclosure_version": { "type": "string", "minLength": 1, "maxLength": 64, "pattern": "\\S" } }, "required": ["disclosure_version"] } },
+        { "if": { "properties": { "disclosure_version": { "type": "string", "pattern": "\\S" } }, "required": ["disclosure_version"] }, "then": { "anyOf": [
+          { "properties": { "phone_contact": { "const": true } }, "required": ["phone_contact"] },
+          { "properties": { "sms": { "const": true } }, "required": ["sms"] }
+        ] } }
+      ]
+    },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "turnstile_verified": { "type": "boolean" },
+        "test": { "type": "boolean" }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "consent": {
+            "type": "object",
+            "anyOf": [
+              { "properties": { "phone_contact": { "const": true } }, "required": ["phone_contact"] },
+              { "properties": { "sms": { "const": true } }, "required": ["sms"] }
+            ]
+          }
+        },
+        "required": ["consent"]
+      },
+      "then": {
+        "properties": {
+          "contact": {
+            "type": "object",
+            "properties": {
+              "phone": { "type": "string", "minLength": 1, "pattern": "\\S" }
+            },
+            "required": ["phone"]
+          }
+        }
+      }
+    }
+  ]
+}
