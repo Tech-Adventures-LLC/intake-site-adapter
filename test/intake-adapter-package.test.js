@@ -227,6 +227,17 @@ test('GitHub settings transport fails closed on non-200, malformed, oversized an
   await expectReleaseError(releaseInput({ fetchImpl: async () => { throw Object.assign(Error('secret timeout detail'), { name: 'AbortError' }); } }), 'github_settings_unavailable');
 });
 
+test('non-200 settings response aborts request and cancels a stalled body', async () => {
+  let signal; let canceled = false;
+  const response = new Response(new ReadableStream({
+    start() {},
+    cancel() { canceled = true; },
+  }), { status: 502 });
+  await expectReleaseError(releaseInput({ fetchImpl: async (_url, options) => { signal = options.signal; return response; } }), 'github_settings_unavailable');
+  assert.equal(signal.aborted, true);
+  assert.equal(canceled, true);
+});
+
 test('GitHub settings deadline ends a stalled fetch and stalled response body', { timeout: 8000 }, async () => {
   const stalledBody = new Response(new ReadableStream({ start() {} }));
   const started = Date.now();

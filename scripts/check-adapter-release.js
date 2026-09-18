@@ -47,11 +47,12 @@ async function readGitHubSettings(fetchImpl, repository, path, githubToken) {
           redirect: 'error', signal: controller.signal,
           headers: { authorization: `Bearer ${githubToken}`, accept: 'application/vnd.github+json', 'x-github-api-version': '2022-11-28' },
         });
-        requireCondition(response?.status === 200 && response.body?.getReader, 'github_settings_unavailable');
+        requireCondition(response?.body?.getReader, 'github_settings_unavailable');
         const reader = response.body.getReader();
         activeReader = reader;
         const chunks = []; let size = 0;
         try {
+          requireCondition(response.status === 200, 'github_settings_unavailable');
           while (true) {
             const { value, done } = await reader.read();
             if (done) break;
@@ -67,7 +68,7 @@ async function readGitHubSettings(fetchImpl, repository, path, githubToken) {
       new Promise((_, reject) => { timeout = setTimeout(() => { controller.abort(); activeReader?.cancel().catch(() => {}); reject(Error('github_settings_unavailable')); }, SETTINGS_TIMEOUT_MS); }),
     ]);
   } catch { throw Error('github_settings_unavailable'); }
-  finally { clearTimeout(timeout); }
+  finally { clearTimeout(timeout); controller.abort(); activeReader?.cancel().catch(() => {}); }
 }
 
 export async function checkReleasePreparation({ metadata, authority, bytes, expectedDigest, sourceSha, reviewedSourceSha, repository, fetchImpl = fetch, githubToken, ref, eventName, actorId, triggeringActor, runId }) {
