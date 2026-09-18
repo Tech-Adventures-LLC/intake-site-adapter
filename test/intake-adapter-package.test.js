@@ -1,11 +1,24 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { auditPublicBytes, prepareAdapterPackage } from '../scripts/prepare-adapter-package.js';
 import { assertProtectedEnvironment, assertReviewedArtifact, checkReleasePreparation } from '../scripts/check-adapter-release.js';
+
+function copyPreparationSource(destination) {
+  for (const path of ['packages', 'test', 'qa', 'contracts', 'scripts', 'release', 'package-lock.json']) {
+    cpSync(new URL(`../${path}`, import.meta.url), join(destination, path), { recursive: true });
+  }
+  symlinkSync(new URL('../node_modules/', import.meta.url), join(destination, 'node_modules'), 'dir');
+}
+
+function copyPackageOnlySource(destination) {
+  mkdirSync(join(destination, 'packages'), { recursive: true });
+  cpSync(new URL('../packages/intake-site-adapter/', import.meta.url), join(destination, 'packages/intake-site-adapter'), { recursive: true });
+  symlinkSync(new URL('../node_modules/', import.meta.url), join(destination, 'node_modules'), 'dir');
+}
 
 test('real package is reproducible, byte-audited, integrity-installed and consumed through runtime, CLI and declarations', () => {
   const root = mkdtempSync(join(tmpdir(), 'adapter-artifact-test-'));
@@ -16,6 +29,65 @@ test('real package is reproducible, byte-audited, integrity-installed and consum
     assert.equal(manifest.length, 12); assert.ok(manifest.every(file => /^[a-f0-9]{64}$/.test(file.sha256)));
     const sbom = JSON.parse(readFileSync(join(result.output, 'sbom.cdx.json'))); assert.equal(sbom.bomFormat, 'CycloneDX'); assert.equal(sbom.metadata.component.version, '1.1.0');
     assert.ok(result.source_export.files > result.packed_files);
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+test('generated public export records a matching configured source identity without treating it as live ownership proof', () => {
+  const root = mkdtempSync(join(tmpdir(), 'adapter-configured-export-'));
+  try {
+    copyPreparationSource(root);
+    const result = prepareAdapterPackage({ root, output: join(root, 'output') });
+    const readme = readFileSync(join(result.output, 'public-source', 'README.md'), 'utf8');
+    const report = JSON.parse(readFileSync(join(result.output, 'preparation.json')));
+    assert.match(readme, /Configured public source identity: Tech-Adventures-LLC\/intake-site-adapter\./);
+    assert.match(readme, /configuration only; live repository ownership is not verified/i);
+    assert.deepEqual(report.source_identity, { status: 'configured-not-live-verified', repository: 'Tech-Adventures-LLC/intake-site-adapter' });
+    assert.ok(!report.publication_blockers.includes('approved_public_source_identity_missing'));
+    assert.ok(report.publication_blockers.includes('public_source_ownership_not_live_verified'));
+    assert.equal(report.publication_ready, false);
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+test('generated public export retains the missing identity blocker for unconfigured or mismatched metadata', () => {
+  for (const mutate of [
+    metadata => { delete metadata.repository; },
+    metadata => { metadata.repository.url = 'git+https://github.com/synthetic/adapter.git'; },
+  ]) {
+    const root = mkdtempSync(join(tmpdir(), 'adapter-missing-export-'));
+    try {
+      copyPreparationSource(root);
+      const metadataPath = join(root, 'packages/intake-site-adapter/package.json');
+      const metadata = JSON.parse(readFileSync(metadataPath)); mutate(metadata); writeFileSync(metadataPath, JSON.stringify(metadata, null, 2));
+      const result = prepareAdapterPackage({ root, output: join(root, 'output') });
+      const readme = readFileSync(join(result.output, 'public-source', 'README.md'), 'utf8');
+      const report = JSON.parse(readFileSync(join(result.output, 'preparation.json')));
+      assert.match(readme, /Public source identity is missing or mismatched\./);
+      assert.equal(report.source_identity.status, 'missing-or-mismatched');
+      assert.ok(report.publication_blockers.includes('approved_public_source_identity_missing'));
+      assert.equal(report.publication_ready, false);
+    } finally { rmSync(root, { recursive: true, force: true }); }
+  }
+});
+
+test('package-only root without release authority prepares with public export disabled and retains the missing identity blocker', () => {
+  const root = mkdtempSync(join(tmpdir(), 'adapter-package-only-root-'));
+  try {
+    copyPackageOnlySource(root);
+    const result = prepareAdapterPackage({ root, output: join(root, 'output'), exportPublicSource: false });
+    const report = JSON.parse(readFileSync(join(result.output, 'preparation.json')));
+    assert.equal(result.source_export, null);
+    assert.equal(report.source_identity.status, 'missing-or-mismatched');
+    assert.ok(report.publication_blockers.includes('approved_public_source_identity_missing'));
+    assert.equal(report.publication_ready, false);
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+test('package-only root rejects malformed present release authority even when public export is disabled', () => {
+  const root = mkdtempSync(join(tmpdir(), 'adapter-malformed-authority-'));
+  try {
+    copyPackageOnlySource(root);
+    mkdirSync(join(root, 'release')); writeFileSync(join(root, 'release/adapter-release-authority.json'), '{ malformed');
+    assert.throws(() => prepareAdapterPackage({ root, output: join(root, 'output'), exportPublicSource: false }), /release_authority_invalid/);
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
 

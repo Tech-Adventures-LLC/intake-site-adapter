@@ -1,0 +1,73 @@
+name: Package validation
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Node ${{ matrix.node }} package validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        node:
+          - 20.20.2
+          - 22.23.2
+    steps:
+      - name: Check out source
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          persist-credentials: false
+      - name: Set up Node.js
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Identify tested source and runtime
+        run: |
+          git rev-parse HEAD
+          node --version
+          npm --version
+      - name: Install public development dependencies without scripts or credentials
+        run: |
+          npm_root="$RUNNER_TEMP/npm-config"
+          mkdir -p "$npm_root/home" "$npm_root/cache"
+          : > "$npm_root/user.npmrc"
+          : > "$npm_root/global.npmrc"
+          env -i \
+            PATH="$PATH" \
+            HOME="$npm_root/home" \
+            NPM_CONFIG_USERCONFIG="$npm_root/user.npmrc" \
+            NPM_CONFIG_GLOBALCONFIG="$npm_root/global.npmrc" \
+            NPM_CONFIG_CACHE="$npm_root/cache" \
+            NPM_CONFIG_REGISTRY="https://registry.npmjs.org" \
+            NPM_CONFIG_AUDIT="false" \
+            NPM_CONFIG_FUND="false" \
+            npm ci --ignore-scripts
+      - name: Run native adapter suite
+        run: npm test
+      - name: Prepare and identify package candidate
+        run: |
+          npm run adapter:pack -- --output intake-adapter-package-output
+          cat intake-adapter-package-output/preparation.json
+          shasum -a 256 intake-adapter-package-output/*.tgz
+      - name: Audit public development dependencies
+        run: |
+          npm_root="$RUNNER_TEMP/npm-audit-config"
+          mkdir -p "$npm_root/home" "$npm_root/cache"
+          : > "$npm_root/user.npmrc"
+          : > "$npm_root/global.npmrc"
+          env -i \
+            PATH="$PATH" \
+            HOME="$npm_root/home" \
+            NPM_CONFIG_USERCONFIG="$npm_root/user.npmrc" \
+            NPM_CONFIG_GLOBALCONFIG="$npm_root/global.npmrc" \
+            NPM_CONFIG_CACHE="$npm_root/cache" \
+            NPM_CONFIG_REGISTRY="https://registry.npmjs.org" \
+            npm audit --audit-level=high
