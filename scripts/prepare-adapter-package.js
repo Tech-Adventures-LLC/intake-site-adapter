@@ -66,11 +66,13 @@ function sourceExport(root, output, files, authority) {
     'qa/fixtures/canary-routes/vercel.js', 'qa/fixtures/canary-routes/web.js', 'qa/fixtures/canary-routes/public.js',
     'contracts/intake/v1/lead-command.schema.json', 'contracts/intake/v1/error-response.schema.json',
     'scripts/adapter-test-reporter.js', 'scripts/run-adapter-tests.js', 'scripts/prepare-adapter-package.js',
+    'scripts/prepare-adapter-bootstrap.js',
     'scripts/check-adapter-release.js', 'release/adapter-publication.yml.template', 'release/adapter-release-authority.json',
+    'release/bootstrap/package.json', 'release/bootstrap/README.md', 'release/bootstrap/LICENSE',
   ];
   for (const file of paths) copiedFile(join(root, file), join(target, file));
   const development = { ajv: '8.18.0', 'ajv-formats': '3.0.1', typescript: '5.9.3' };
-  const metadata = { name: 'intake-adapter-public-source', version: '1.1.0', private: true, type: 'module', scripts: { test: 'node scripts/run-adapter-tests.js', 'adapter:test': 'node scripts/run-adapter-tests.js', 'adapter:pack': 'node scripts/prepare-adapter-package.js' }, devDependencies: development, engines: { node: '>=20' } };
+  const metadata = { name: 'intake-adapter-public-source', version: '1.1.0', private: true, type: 'module', scripts: { test: 'node scripts/run-adapter-tests.js', 'adapter:test': 'node scripts/run-adapter-tests.js', 'adapter:pack': 'node scripts/prepare-adapter-package.js', 'bootstrap:prepare': 'node scripts/prepare-adapter-bootstrap.js' }, devDependencies: development, engines: { node: '>=20' } };
   writeJSON(join(target, 'package.json'), metadata);
   const lock = json(join(root, 'package-lock.json'));
   const packages = { '': { name: metadata.name, version: metadata.version, devDependencies: development, engines: metadata.engines } };
@@ -87,7 +89,7 @@ function sourceExport(root, output, files, authority) {
   const identityReadme = identity.status === 'configured-not-live-verified'
     ? `Configured public source identity: ${identity.repository}. This is configuration only; live repository ownership is not verified.`
     : 'Public source identity is missing or mismatched. Publication remains blocked until matching repository metadata and authority are configured.';
-  writeFileSync(join(target, 'README.md'), `# Intake site adapter public source\n\n${identityReadme}\n\nThis package-only source supports Node.js 20 and newer. Run \`npm ci --ignore-scripts --registry=https://registry.npmjs.org\`, \`npm test\`, and \`npm run adapter:pack\` for local preparation. It contains reusable adapter code, public contracts, and synthetic checks only. Publication remains blocked pending npm owner setup, package bootstrap, trusted publishing, 2FA, protected release settings, and provenance verification.\n`);
+  writeFileSync(join(target, 'README.md'), `# Intake site adapter public source\n\n${identityReadme}\n\nThis package-only source supports Node.js 20 and newer. Run \`npm ci --ignore-scripts --registry=https://registry.npmjs.org\`, \`npm test\`, \`npm run adapter:pack\`, and \`npm run bootstrap:prepare\` for local preparation. It contains reusable adapter code, public contracts, and synthetic checks only. The bootstrap is an unusable setup prerelease, never a site dependency. Publication remains blocked pending a separate exact-artifact approval, npm owner setup, trusted publishing, 2FA, protected release settings, and provenance verification.\n`);
   const manifest = [];
   function walk(directory, prefix = '') {
     for (const name of readdirSync(directory).sort()) {

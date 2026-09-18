@@ -6,7 +6,8 @@
   "scripts": {
     "test": "node scripts/run-adapter-tests.js",
     "adapter:test": "node scripts/run-adapter-tests.js",
-    "adapter:pack": "node scripts/prepare-adapter-package.js"
+    "adapter:pack": "node scripts/prepare-adapter-package.js",
+    "bootstrap:prepare": "node scripts/prepare-adapter-bootstrap.js"
   },
   "devDependencies": {
     "ajv": "8.18.0",
