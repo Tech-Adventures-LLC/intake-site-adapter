@@ -1,8 +1,17 @@
 {
   "setupStatus": "pending-npm-owner-setup",
   "publicRepository": "Tech-Adventures-LLC/intake-site-adapter",
+  "publicRepositoryId": 1375264810,
   "environment": "npm-release",
   "workflowFilename": "release-adapter.yml",
+  "reviewPolicy": {
+    "mode": "sole-owner",
+    "requiredReviewer": {
+      "type": "User",
+      "id": 142938424,
+      "login": "ii-am-modiify"
+    }
+  },
   "npmPackage": "@tech-adventures-llc/intake-site-adapter",
   "version": "1.1.0",
   "intendedPublisherAction": "publish",

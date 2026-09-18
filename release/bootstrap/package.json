@@ -1,0 +1,17 @@
+{
+  "name": "@tech-adventures-llc/intake-site-adapter",
+  "version": "0.0.0-bootstrap.0",
+  "description": "Unusable registry setup prerelease; no adapter API",
+  "license": "Apache-2.0",
+  "type": "module",
+  "exports": {},
+  "files": [
+    "README.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org",
+    "tag": "bootstrap"
+  }
+}
