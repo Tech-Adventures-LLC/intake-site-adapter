@@ -14,6 +14,12 @@ function copyPreparationSource(destination) {
   symlinkSync(new URL('../node_modules/', import.meta.url), join(destination, 'node_modules'), 'dir');
 }
 
+function copyPackageOnlySource(destination) {
+  mkdirSync(join(destination, 'packages'), { recursive: true });
+  cpSync(new URL('../packages/intake-site-adapter/', import.meta.url), join(destination, 'packages/intake-site-adapter'), { recursive: true });
+  symlinkSync(new URL('../node_modules/', import.meta.url), join(destination, 'node_modules'), 'dir');
+}
+
 test('real package is reproducible, byte-audited, integrity-installed and consumed through runtime, CLI and declarations', () => {
   const root = mkdtempSync(join(tmpdir(), 'adapter-artifact-test-'));
   try {
@@ -61,6 +67,28 @@ test('generated public export retains the missing identity blocker for unconfigu
       assert.equal(report.publication_ready, false);
     } finally { rmSync(root, { recursive: true, force: true }); }
   }
+});
+
+test('package-only root without release authority prepares with public export disabled and retains the missing identity blocker', () => {
+  const root = mkdtempSync(join(tmpdir(), 'adapter-package-only-root-'));
+  try {
+    copyPackageOnlySource(root);
+    const result = prepareAdapterPackage({ root, output: join(root, 'output'), exportPublicSource: false });
+    const report = JSON.parse(readFileSync(join(result.output, 'preparation.json')));
+    assert.equal(result.source_export, null);
+    assert.equal(report.source_identity.status, 'missing-or-mismatched');
+    assert.ok(report.publication_blockers.includes('approved_public_source_identity_missing'));
+    assert.equal(report.publication_ready, false);
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+test('package-only root rejects malformed present release authority even when public export is disabled', () => {
+  const root = mkdtempSync(join(tmpdir(), 'adapter-malformed-authority-'));
+  try {
+    copyPackageOnlySource(root);
+    mkdirSync(join(root, 'release')); writeFileSync(join(root, 'release/adapter-release-authority.json'), '{ malformed');
+    assert.throws(() => prepareAdapterPackage({ root, output: join(root, 'output'), exportPublicSource: false }), /release_authority_invalid/);
+  } finally { rmSync(root, { recursive: true, force: true }); }
 });
 
 test('packed byte scanner detects credential, internal-origin, local-path and binary contamination', () => {

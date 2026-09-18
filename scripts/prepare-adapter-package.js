@@ -49,7 +49,16 @@ function sourceIdentity(metadata, authority) {
     ? { status: 'configured-not-live-verified', repository }
     : { status: 'missing-or-mismatched' };
 }
-function sourceExport(root, output, files) {
+function releaseAuthority(root, exportPublicSource) {
+  const path = join(root, 'release/adapter-release-authority.json');
+  if (!existsSync(path)) {
+    requireCondition(!exportPublicSource, 'release_authority_missing');
+    return null;
+  }
+  try { return json(path); }
+  catch { throw Error('release_authority_invalid'); }
+}
+function sourceExport(root, output, files, authority) {
   const target = join(output, 'public-source'); mkdirSync(target);
   for (const file of files) copiedFile(join(root, 'packages/intake-site-adapter', file), join(target, 'packages/intake-site-adapter', file));
   const paths = [
@@ -74,7 +83,7 @@ function sourceExport(root, output, files) {
     pending.push(...Object.keys(entry.dependencies ?? {}));
   }
   writeJSON(join(target, 'package-lock.json'), { name: metadata.name, version: metadata.version, lockfileVersion: 3, requires: true, packages });
-  const identity = sourceIdentity(json(join(root, 'packages/intake-site-adapter/package.json')), json(join(root, 'release/adapter-release-authority.json')));
+  const identity = sourceIdentity(json(join(root, 'packages/intake-site-adapter/package.json')), authority);
   const identityReadme = identity.status === 'configured-not-live-verified'
     ? `Configured public source identity: ${identity.repository}. This is configuration only; live repository ownership is not verified.`
     : 'Public source identity is missing or mismatched. Publication remains blocked until matching repository metadata and authority are configured.';
@@ -143,8 +152,9 @@ export function prepareAdapterPackage({ root = ROOT, output, exportPublicSource 
     sbom.metadata.component.hashes = [{ alg: 'SHA-256', content: digest(tarball) }];
     requireCondition(auditPublicBytes(Buffer.from(JSON.stringify(sbom))).length === 0, 'sbom_audit_failed');
     writeJSON(join(output, 'sbom.cdx.json'), sbom); writeJSON(join(output, 'packed-files.json'), manifest); writeJSON(join(output, 'consumer-lock.json'), consumerLock);
-    const exported = exportPublicSource ? sourceExport(root, output, PACKAGE_FILES) : null;
-    const identity = sourceIdentity(metadata, json(join(root, 'release/adapter-release-authority.json')));
+    const authority = releaseAuthority(root, exportPublicSource);
+    const exported = exportPublicSource ? sourceExport(root, output, PACKAGE_FILES, authority) : null;
+    const identity = sourceIdentity(metadata, authority);
     const identityBlocker = identity.status === 'configured-not-live-verified' ? 'public_source_ownership_not_live_verified' : 'approved_public_source_identity_missing';
     const report = { status: 'local-preparation-only', package: PACKAGE_NAME, version: metadata.version, node: process.version, npm: npm(['--version'], staged, 'npm_version_failed').trim(), tarball: first.filename, bytes: tarball.length, sha256: digest(tarball), integrity, packed_files: manifest.length, reproducible_pack: true, every_packed_byte_matches_source: true, offline_install_and_ci: true, lock_integrity_verified: true, runtime_cli_types: true, runtime_dependencies: 0, source_identity: identity, source_export: exported, publication_ready: false, publication_blockers: [identityBlocker, 'protected_environment_and_npm_owner_setup_unverified', 'first_package_bootstrap_unresolved'] };
     writeJSON(join(output, 'preparation.json'), report); return { output, ...report };
