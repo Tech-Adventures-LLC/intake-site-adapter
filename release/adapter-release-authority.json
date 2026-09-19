@@ -1,5 +1,4 @@
 {
-  "setupStatus": "pending-npm-owner-setup",
   "publicRepository": "Tech-Adventures-LLC/intake-site-adapter",
   "publicRepositoryId": 1375264810,
   "environment": "npm-release",
@@ -15,8 +14,28 @@
   "npmPackage": "@tech-adventures-llc/intake-site-adapter",
   "version": "1.1.0",
   "intendedPublisherAction": "publish",
-  "packageExistence": "unverified-owner-state",
-  "firstPackageBootstrap": "unresolved",
-  "trustedPublisher": "unverified",
-  "accountTwoFactor": "unverified"
+  "setupEvidence": {
+    "status": "historically-verified",
+    "verifiedAt": "2026-09-19",
+    "trustId": "40cfe17f-c546-47be-b1f2-4e5dd989f8f2",
+    "permissions": [
+      "createPackage",
+      "createStagedPackage"
+    ],
+    "accountTwoFactor": "auth-and-writes",
+    "publishRequiresTwoFactor": true,
+    "bypassTwoFactorTokensAllowed": false,
+    "runtimeNpmProof": false
+  },
+  "reviewedArtifact": {
+    "sha256": "c2b2fbe7e182bda697178b817e57ded088e7d046c9de530674670e83fa516d8b",
+    "integrity": "sha512-B6zv2z66z7TKrp7GVtF3fI3ZtAQLEG7DUwVCT6iMoRO1SXZsxIMYLS+BHedQw4Km9c/4WQfnoG0cTorgIHLfOA=="
+  },
+  "bootstrap": {
+    "version": "0.0.0-bootstrap.0",
+    "bytes": 4535,
+    "sha256": "386d45bc298d57fc18b24e04ebb01194eb5f98f4ebf101d2572efe48070fbdf6",
+    "integrity": "sha512-E6/4J6azPc+J6UBs0dv/recGgbW4gUsOzaGSW5g4a7I5OIY687EhNfgjuc1EWJeE/pu7UxlxzYDOWhOHL1L/qw=="
+  },
+  "tagExceptionExpiresAt": "2026-09-25T23:59:59Z"
 }
