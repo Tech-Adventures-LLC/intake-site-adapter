@@ -67,7 +67,7 @@ function sourceExport(root, output, files, authority) {
     'contracts/intake/v1/lead-command.schema.json', 'contracts/intake/v1/error-response.schema.json',
     'scripts/adapter-test-reporter.js', 'scripts/run-adapter-tests.js', 'scripts/prepare-adapter-package.js',
     'scripts/prepare-adapter-bootstrap.js',
-    'scripts/check-adapter-release.js', 'release/adapter-publication.yml.template', 'release/adapter-release-authority.json',
+    'scripts/check-adapter-release.js', 'scripts/publish-adapter.js', 'release/adapter-publication.yml.template', 'release/adapter-release-authority.json',
     'release/bootstrap/package.json', 'release/bootstrap/README.md', 'release/bootstrap/LICENSE',
   ];
   for (const file of paths) copiedFile(join(root, file), join(target, file));
@@ -89,7 +89,7 @@ function sourceExport(root, output, files, authority) {
   const identityReadme = identity.status === 'configured-not-live-verified'
     ? `Configured public source identity: ${identity.repository}. This is configuration only; live repository ownership is not verified.`
     : 'Public source identity is missing or mismatched. Publication remains blocked until matching repository metadata and authority are configured.';
-  writeFileSync(join(target, 'README.md'), `# Intake site adapter public source\n\n${identityReadme}\n\nThis package-only source supports Node.js 20 and newer. Run \`npm ci --ignore-scripts --registry=https://registry.npmjs.org\`, \`npm test\`, \`npm run adapter:pack\`, and \`npm run bootstrap:prepare\` for local preparation. It contains reusable adapter code, public contracts, and synthetic checks only. The bootstrap is an unusable setup prerelease, never a site dependency. Publication remains blocked pending a separate exact-artifact approval, npm owner setup, trusted publishing, 2FA, protected release settings, and provenance verification.\n`);
+  writeFileSync(join(target, 'README.md'), `# Intake site adapter public source\n\n${identityReadme}\n\nThis package-only source supports Node.js 20 and newer. Run \`npm ci --ignore-scripts --registry=https://registry.npmjs.org\`, \`npm test\`, \`npm run adapter:pack\`, and \`npm run bootstrap:prepare\` for local preparation. It contains reusable adapter code, public contracts, and synthetic checks only. The bootstrap is an unusable setup prerelease, never a site dependency. Owner setup was independently verified on 2026-09-19; this local export does not verify current settings. Publication remains blocked pending reviewed workflow activation and exact-artifact owner approval, fresh protected GitHub and registry prerequisite checks, the actual OIDC publication, and registry/provenance verification.\n`);
   const manifest = [];
   function walk(directory, prefix = '') {
     for (const name of readdirSync(directory).sort()) {
@@ -158,7 +158,7 @@ export function prepareAdapterPackage({ root = ROOT, output, exportPublicSource 
     const exported = exportPublicSource ? sourceExport(root, output, PACKAGE_FILES, authority) : null;
     const identity = sourceIdentity(metadata, authority);
     const identityBlocker = identity.status === 'configured-not-live-verified' ? 'public_source_ownership_not_live_verified' : 'approved_public_source_identity_missing';
-    const report = { status: 'local-preparation-only', package: PACKAGE_NAME, version: metadata.version, node: process.version, npm: npm(['--version'], staged, 'npm_version_failed').trim(), tarball: first.filename, bytes: tarball.length, sha256: digest(tarball), integrity, packed_files: manifest.length, reproducible_pack: true, every_packed_byte_matches_source: true, offline_install_and_ci: true, lock_integrity_verified: true, runtime_cli_types: true, runtime_dependencies: 0, source_identity: identity, source_export: exported, publication_ready: false, publication_blockers: [identityBlocker, 'protected_environment_and_npm_owner_setup_unverified', 'first_package_bootstrap_unresolved'] };
+    const report = { status: 'local-preparation-only', package: PACKAGE_NAME, version: metadata.version, node: process.version, npm: npm(['--version'], staged, 'npm_version_failed').trim(), tarball: first.filename, bytes: tarball.length, sha256: digest(tarball), integrity, packed_files: manifest.length, reproducible_pack: true, every_packed_byte_matches_source: true, offline_install_and_ci: true, lock_integrity_verified: true, runtime_cli_types: true, runtime_dependencies: 0, source_identity: identity, source_export: exported, publication_ready: false, publication_blockers: [identityBlocker, 'protected_workflow_activation_and_exact_artifact_owner_approval_required', 'fresh_protected_github_and_registry_prerequisites_required', 'actual_oidc_publication_required', 'registry_publication_and_provenance_unverified'] };
     writeJSON(join(output, 'preparation.json'), report); return { output, ...report };
   } finally { rmSync(temporary, { recursive: true, force: true }); }
 }
