@@ -85,7 +85,7 @@ export async function publishAdapter({ artifactPath, env = process.env, fetchImp
   try {
     temporary = mkdtempSync(join(tmpdir(), 'intake-reviewed-publication-'));
     chmodSync(temporary, 0o700);
-    const artifact = join(temporary, 'tech-adventures-llc-intake-site-adapter-1.1.0.tgz');
+    const artifact = join(temporary, 'tech-adventures-llc-intake-site-adapter-2.0.0.tgz');
     writeFileSync(artifact, bytes, { mode: 0o400, flag: 'wx' });
     // Stop npm's project-root search here; no ancestor project npmrc is read.
     writeFileSync(join(temporary, 'package.json'), JSON.stringify({ private: true }), { mode: 0o400, flag: 'wx' });

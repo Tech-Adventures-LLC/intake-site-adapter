@@ -25,7 +25,7 @@ async function environment(fn, overrides = {}) {
 let client = 1;
 async function invoke(handler, input = body, inputHeaders = headers) { const res = recorder(); await handler({ method: 'POST', headers: inputHeaders === headers ? { ...headers, 'x-vercel-forwarded-for': `198.51.100.${client++}` } : inputHeaders, body: input }, res); return res; }
 const ajv = new Ajv({ strict: true }); addFormats(ajv);
-const validateCommand = ajv.compile(JSON.parse(readFileSync(new URL('../contracts/intake/v1/lead-command.schema.json', import.meta.url))));
+const validateCommand = ajv.compile(JSON.parse(readFileSync(new URL('../contracts/intake/v2/lead-command.schema.json', import.meta.url))));
 
 test('all bounded P01 detail and attribution fields map to a valid emitted command', async () => environment(async () => {
   const schema = validateCommand.schema;
@@ -49,7 +49,7 @@ test('all bounded P01 detail and attribution fields map to a valid emitted comma
 }));
 
 test('mapped types, bounds and consent fail before any transport', async () => environment(async () => {
-  for (const mutation of [{ name: 3 }, { name: 'x'.repeat(161) }, { email: 'invalid' }, { details: { notes: 'x'.repeat(1201) } }, { details: { notes: false } }, { consent: { sms: true } }, { consent: { phone_contact: true, disclosure_version: 'x' }, phone: '  ' }, { consent: { disclosure_version: 'x' } }]) {
+  for (const mutation of [{ name: 3 }, { name: 'x'.repeat(161) }, { email: 'invalid' }, { details: { notes: 'x'.repeat(1201) } }, { details: { notes: false } }, { consent: { sms: true } }, { consent: { phone_contact: true, disclosure_version: 'x' }, phone: '  ' }, { consent: { disclosure_version: 'x' } }, { consent: { phone_contact: false, sms: false, disclosure_version: '  ' } }]) {
     const handler = createIntakeHandler({ ...config, formMap: { ...config.formMap, details: { notes: 'details.notes' }, consent: { sms: 'consent.sms', phone_contact: 'consent.phone_contact', disclosure_version: 'consent.disclosure_version' } }, fetchImpl: async () => assert.fail('invalid command must not leave site') });
     assert.equal((await invoke(handler, { ...body, ...mutation })).code, 400);
   }
@@ -133,7 +133,7 @@ test('production requires Git authority while controlled preview allows SOURCE_S
 }, { VERCEL_ENV: 'production', VERCEL_GIT_COMMIT_SHA: '', SOURCE_SHA: sha }));
 
 test('every canary error exposes a safe request UUID through Node and Web wrappers', async () => environment(async () => {
-  const validateError = new Ajv({ strict: true }).compile(JSON.parse(readFileSync(new URL('../contracts/intake/v1/error-response.schema.json', import.meta.url))));
+  const validateError = new Ajv({ strict: true }).compile(JSON.parse(readFileSync(new URL('../contracts/intake/v2/error-response.schema.json', import.meta.url))));
   const handler = createCanaryHandler({ source: 'fixture-site', logger: null, fetchImpl: async () => canary({ site: 'mismatch' }) });
   const authorization = `Bearer ${process.env.INTAKE_CANARY_PROBE_TOKEN}`;
   for (const [method, authorized, configured, expectedStatus] of [['GET', true, true, 405], ['POST', false, true, 401], ['POST', true, false, 503], ['POST', true, true, 502]]) {
@@ -249,7 +249,7 @@ test('actual Web lead wrapper maps JSON, honors protocol and emits schema-safe e
   const valid = await handler(new Request('https://example.com/api/intake', { method: 'POST', headers: { ...headers, 'x-vercel-forwarded-for': '192.0.2.240' }, body: JSON.stringify(body) }));
   assert.equal(valid.status, 202); assert.equal((await valid.json()).lead_id, uuid);
   const invalid = await handler(new Request('https://example.com/api/intake', { method: 'POST', headers: { ...headers, 'x-vercel-forwarded-for': '192.0.2.241' }, body: '{' }));
-  const validateError = ajv.compile(JSON.parse(readFileSync(new URL('../contracts/intake/v1/error-response.schema.json', import.meta.url))));
+  const validateError = ajv.compile(JSON.parse(readFileSync(new URL('../contracts/intake/v2/error-response.schema.json', import.meta.url))));
   assert.equal(invalid.status, 400); assert.equal(validateError(await invalid.json()), true);
 }));
 

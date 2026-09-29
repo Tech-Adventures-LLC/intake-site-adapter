@@ -8,20 +8,28 @@ import { fileURLToPath } from 'node:url';
 import { prepareAdapterPackage } from '../scripts/prepare-adapter-package.js';
 import { prepareAdapterBootstrap } from '../scripts/prepare-adapter-bootstrap.js';
 import { publishAdapter } from '../scripts/publish-adapter.js';
+import { createHash } from 'node:crypto';
 
 const repository = 'Tech-Adventures-LLC/intake-site-adapter';
 const source = 'a'.repeat(40);
-const sha256 = 'c2b2fbe7e182bda697178b817e57ded088e7d046c9de530674670e83fa516d8b';
+const sha256 = '79bde19a1146871f2b87ae237bc469d31c42cc28ecd7cfd51772d9691f499676';
+const previousSha256 = 'c2b2fbe7e182bda697178b817e57ded088e7d046c9de530674670e83fa516d8b';
+const previousUrl = 'https://registry.npmjs.org/@tech-adventures-llc/intake-site-adapter/-/intake-site-adapter-1.1.0.tgz';
+const metadataUrl = 'https://registry.npmjs.org/@tech-adventures-llc%2fintake-site-adapter';
+const tagsUrl = 'https://registry.npmjs.org/-/package/@tech-adventures-llc%2fintake-site-adapter/dist-tags';
 const root = mkdtempSync(join(tmpdir(), 'adapter-publication-test-'));
-let artifactPath, usableBytes, bootstrapBytes, preparation;
-const now = () => new Date('2026-09-19T00:00:00Z');
-before(() => {
+let artifactPath, usableBytes, bootstrapBytes, previousBytes, preparation;
+const now = () => new Date('2026-09-29T00:00:00Z');
+before(async () => {
   preparation = prepareAdapterPackage({ output: join(root, 'usable') });
   artifactPath = join(preparation.output, preparation.tarball);
   usableBytes = readFileSync(artifactPath);
-  const bootstrap = prepareAdapterBootstrap({ output: join(root, 'bootstrap'), now });
+  previousBytes = readFileSync(new URL('./fixtures/intake-adapter-1.1.0.tgz', import.meta.url));
+  assert.equal(createHash('sha256').update(usableBytes).digest('hex'), sha256);
+  assert.equal(createHash('sha256').update(previousBytes).digest('hex'), previousSha256);
+  const bootstrap = prepareAdapterBootstrap({ output: join(root, 'bootstrap'), now: () => new Date('2026-09-19T00:00:00Z') });
   bootstrapBytes = readFileSync(join(bootstrap.output, bootstrap.tarball));
-  assert.equal(preparation.sha256, sha256);
+  assert.equal(preparation.version, '2.0.0');
 });
 after(() => rmSync(root, { recursive: true, force: true }));
 function environment(changes = {}) {
@@ -42,20 +50,22 @@ function environment(changes = {}) {
   };
 }
 function fakeFetch(overrides = {}) {
-  const tags = { bootstrap: '0.0.0-bootstrap.0', latest: '0.0.0-bootstrap.0' };
+  const tags = { bootstrap: '0.0.0-bootstrap.0', latest: '1.1.0' };
   const fixtures = {
     '': { id: 1375264810, private: false, full_name: repository, default_branch: 'main' },
     '/actions/runs/12345': { id: 12345, repository: { id: 1375264810, full_name: repository }, actor: { id: 142938424, login: 'ii-am-modiify' }, triggering_actor: { id: 142938424, login: 'ii-am-modiify' }, event: 'workflow_dispatch', head_branch: 'main', head_sha: source, path: '.github/workflows/release-adapter.yml' },
     '/branches/main': { name: 'main', protected: true, commit: { sha: source } },
     '/environments/npm-release': { name: 'npm-release', can_admins_bypass: false, protection_rules: [{ type: 'required_reviewers', prevent_self_review: false, reviewers: [{ type: 'User', reviewer: { id: 142938424, login: 'ii-am-modiify' } }] }], deployment_branch_policy: { protected_branches: true, custom_branch_policies: false } },
-    'https://registry.npmjs.org/@tech-adventures-llc%2fintake-site-adapter': { name: '@tech-adventures-llc/intake-site-adapter', 'dist-tags': tags, versions: { '0.0.0-bootstrap.0': { name: '@tech-adventures-llc/intake-site-adapter', version: '0.0.0-bootstrap.0', dist: { integrity: 'sha512-E6/4J6azPc+J6UBs0dv/recGgbW4gUsOzaGSW5g4a7I5OIY687EhNfgjuc1EWJeE/pu7UxlxzYDOWhOHL1L/qw==' } } } },
+    'https://registry.npmjs.org/@tech-adventures-llc%2fintake-site-adapter': { name: '@tech-adventures-llc/intake-site-adapter', 'dist-tags': tags, versions: { '1.1.0': { name: '@tech-adventures-llc/intake-site-adapter', version: '1.1.0', dist: { integrity: 'sha512-B6zv2z66z7TKrp7GVtF3fI3ZtAQLEG7DUwVCT6iMoRO1SXZsxIMYLS+BHedQw4Km9c/4WQfnoG0cTorgIHLfOA==' } }, '0.0.0-bootstrap.0': { name: '@tech-adventures-llc/intake-site-adapter', version: '0.0.0-bootstrap.0', dist: { integrity: 'sha512-E6/4J6azPc+J6UBs0dv/recGgbW4gUsOzaGSW5g4a7I5OIY687EhNfgjuc1EWJeE/pu7UxlxzYDOWhOHL1L/qw==' } } } },
     'https://registry.npmjs.org/-/package/@tech-adventures-llc%2fintake-site-adapter/dist-tags': tags,
     'https://registry.npmjs.org/@tech-adventures-llc/intake-site-adapter/-/intake-site-adapter-0.0.0-bootstrap.0.tgz': bootstrapBytes,
+    [previousUrl]: previousBytes,
     ...overrides,
   };
-  return async url => {
+  return async (url, options) => {
     const item = fixtures[url.replace(`https://api.github.com/repos/${repository}`, '')];
     assert.notEqual(item, undefined, 'unexpected network target');
+    if (typeof item === 'function') return item(url, options);
     return Buffer.isBuffer(item) ? new Response(item) : Response.json(item);
   };
 }
@@ -73,6 +83,7 @@ test('publication uses immutable reviewed bytes once with isolated config, stric
     assert.deepEqual(args.slice(3), ['--registry=https://registry.npmjs.org', '--access', 'public', '--provenance', '--tag', 'latest', '--ignore-scripts']);
     assert.equal(dirname(args[2]), options.cwd);
     assert.notEqual(args[2], artifactPath);
+    assert.equal(args[2].split('/').at(-1), 'tech-adventures-llc-intake-site-adapter-2.0.0.tgz');
     assert.deepEqual(JSON.parse(readFileSync(join(options.cwd, 'package.json'))), { private: true });
     assert.deepEqual(readFileSync(args[2]), usableBytes);
     assert.equal(readFileSync(options.env.NPM_CONFIG_USERCONFIG, 'utf8'), '');
@@ -90,7 +101,7 @@ test('publication uses immutable reviewed bytes once with isolated config, stric
     return { status: 0, stdout: 'synthetic-provider-secret', stderr: 'synthetic-oidc-secret' };
   } }));
   assert.equal(calls, 1); assert.equal(existsSync(temporary), false);
-  assert.deepEqual(result, { ok: true, status: 'publication_command_succeeded', package: '@tech-adventures-llc/intake-site-adapter', version: '1.1.0', sha256, source_sha: source, publication_verified: false, provenance_verified: false });
+  assert.deepEqual(result, { ok: true, status: 'publication_command_succeeded', package: '@tech-adventures-llc/intake-site-adapter', version: '2.0.0', sha256, source_sha: source, publication_verified: false, provenance_verified: false });
 });
 
 test('rejected real preflight and changed exact artifact prevent any npm call', async () => {
@@ -98,16 +109,37 @@ test('rejected real preflight and changed exact artifact prevent any npm call', 
   for (const changes of [
     { fetchImpl: fakeFetch({ '/branches/main': { name: 'main', protected: false, commit: { sha: source } } }) },
     { env: environment({ REVIEWED_TARBALL_SHA256: 'b'.repeat(64) }) },
-    { now: () => new Date('2026-09-26') },
+    { fetchImpl: fakeFetch({ [previousUrl]: Buffer.from(previousBytes).fill(0, 100, 101) }) },
+    { fetchImpl: fakeFetch({ [tagsUrl]: { bootstrap: '0.0.0-bootstrap.0', latest: '2.0.0' } }) },
+    { fetchImpl: fakeFetch({ [metadataUrl]: { name: '@tech-adventures-llc/intake-site-adapter', versions: { '0.0.0-bootstrap.0': {}, '1.1.0': {}, '2.0.0': {} } } }) },
   ]) await assert.rejects(publishAdapter(input({ ...changes, runNpm: () => { calls++; } })), /release_preparation_blocked/);
   assert.equal(calls, 0);
+});
+
+test('a stalled retained 1.1 archive aborts preflight without any npm call or retry', { timeout: 8000 }, async () => {
+  let npmCalls = 0, fetchCalls = 0, signal;
+  const started = Date.now();
+  await assert.rejects(publishAdapter(input({
+    fetchImpl: fakeFetch({ [previousUrl]: async (_url, options) => {
+      fetchCalls++; signal = options.signal; return new Promise(() => {});
+    } }),
+    runNpm: () => { npmCalls++; },
+  })), /release_preparation_blocked/);
+  assert.ok(Date.now() - started >= 4800);
+  assert.equal(fetchCalls, 1);
+  assert.equal(signal.aborted, true);
+  assert.equal(npmCalls, 0);
 });
 
 test('invalid OIDC, hosted identity or provenance context prevents publication', async () => {
   let calls = 0;
   for (const changes of [
     { ACTIONS_ID_TOKEN_REQUEST_TOKEN: '' }, { ACTIONS_ID_TOKEN_REQUEST_URL: 'http://example.actions.githubusercontent.com/oidc' },
-    { ACTIONS_ID_TOKEN_REQUEST_URL: 'https://evil.example/oidc' }, { GITHUB_ACTIONS: 'false' }, { CI: 'false' },
+    { ACTIONS_ID_TOKEN_REQUEST_URL: 'https://evil.example/oidc' },
+    { ACTIONS_ID_TOKEN_REQUEST_URL: 'https://user@example.actions.githubusercontent.com/oidc' },
+    { ACTIONS_ID_TOKEN_REQUEST_URL: 'https://user:password@example.actions.githubusercontent.com/oidc' },
+    { ACTIONS_ID_TOKEN_REQUEST_URL: 'https://example.actions.githubusercontent.com:8443/oidc' },
+    { ACTIONS_ID_TOKEN_REQUEST_URL: 'https://example.actions.githubusercontent.com/oidc#fragment' }, { GITHUB_ACTIONS: 'false' }, { CI: 'false' },
     { RUNNER_ENVIRONMENT: 'self-hosted' }, { GITHUB_SERVER_URL: 'https://enterprise.example' },
     { GITHUB_REPOSITORY: 'synthetic/other' }, { GITHUB_REPOSITORY_ID: '1' }, { GITHUB_REPOSITORY_OWNER_ID: '1' },
     { GITHUB_REF: 'refs/heads/feature' }, { GITHUB_SHA: 'b'.repeat(40) }, { GITHUB_EVENT_NAME: 'push' },
@@ -137,6 +169,19 @@ test('failed, timed out, signalled or throwing npm is ambiguous with one attempt
     assert.equal(calls, 1); assert.equal(existsSync(temporary), false);
     assert.deepEqual(readFileSync(artifactPath), usableBytes);
   }
+});
+
+test('the retained 1.1 artifact cannot be republished under the 2.0 release policy', async () => {
+  let calls = 0;
+  const previousArtifact = join(root, 'retained-1.1.0.tgz');
+  writeFileSync(previousArtifact, previousBytes);
+  await assert.rejects(publishAdapter(input({
+    artifactPath: previousArtifact,
+    env: environment({ REVIEWED_TARBALL_SHA256: previousSha256 }),
+    fetchImpl: async () => { calls++; throw Error('must fail before network'); },
+    runNpm: () => { calls++; },
+  })), /release_preparation_blocked/);
+  assert.equal(calls, 0);
 });
 
 test('local preparation exports the runner and reports remaining gates without claiming setup is missing', () => {

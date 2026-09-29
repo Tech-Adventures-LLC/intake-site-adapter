@@ -1,6 +1,6 @@
 {
   "name": "@tech-adventures-llc/intake-site-adapter",
-  "version": "1.1.0",
+  "version": "2.0.0",
   "license": "Apache-2.0",
   "type": "module",
   "repository": {
@@ -42,5 +42,5 @@
     "LICENSE",
     "NOTICE"
   ],
-  "description": "Bounded server-side lead and canary adapter for intake-contract-v1"
+  "description": "Bounded server-side lead and canary adapter for intake-contract-v2"
 }

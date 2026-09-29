@@ -66,7 +66,7 @@ test('verifier rejects rewritten acknowledged output even when HTTP status stays
 test('actual CLI validates arguments and succeeds only for a protected acknowledged route', async () => {
   await fixture(validCode, async root => {
     const { stdout, stderr } = await execute(process.execPath, [cli, '--route', 'route.mjs', '--source', 'fixture-site'], { cwd: root, env: {}, timeout: 3000, maxBuffer: 4096 });
-    assert.equal(stderr, ''); const result = JSON.parse(stdout); assert.equal(result.ok, true); assert.equal(result.adapter_version, '1.1.0'); assert.equal(result.wrong_token_status, 401);
+    assert.equal(stderr, ''); const result = JSON.parse(stdout); assert.equal(result.ok, true); assert.equal(result.adapter_version, '2.0.0'); assert.equal(result.wrong_token_status, 401);
     await assert.rejects(() => execute(process.execPath, [cli, '--route', 'route.mjs', '--source', 'fixture-site', '--anything', 'secret'], { cwd: root, env: {}, timeout: 3000, maxBuffer: 4096 }), error => error.code === 1 && JSON.parse(error.stderr).error === 'invalid_arguments');
   });
 });

@@ -1,5 +1,5 @@
-export const ADAPTER_VERSION: '1.1.0';
-export const CONTRACT_VERSION: 'intake-contract-v1';
+export const ADAPTER_VERSION: '2.0.0';
+export const CONTRACT_VERSION: 'intake-contract-v2';
 
 export class SiteAdapterConfigurationError extends Error {}
 

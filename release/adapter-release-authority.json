@@ -12,7 +12,7 @@
     }
   },
   "npmPackage": "@tech-adventures-llc/intake-site-adapter",
-  "version": "1.1.0",
+  "version": "2.0.0",
   "intendedPublisherAction": "publish",
   "setupEvidence": {
     "status": "historically-verified",
@@ -28,8 +28,9 @@
     "runtimeNpmProof": false
   },
   "reviewedArtifact": {
-    "sha256": "c2b2fbe7e182bda697178b817e57ded088e7d046c9de530674670e83fa516d8b",
-    "integrity": "sha512-B6zv2z66z7TKrp7GVtF3fI3ZtAQLEG7DUwVCT6iMoRO1SXZsxIMYLS+BHedQw4Km9c/4WQfnoG0cTorgIHLfOA=="
+    "bytes": 19629,
+    "sha256": "79bde19a1146871f2b87ae237bc469d31c42cc28ecd7cfd51772d9691f499676",
+    "integrity": "sha512-esndSi0gwacIvxMbiKFkXQOYaEyGg/SuSvgCNV+kf1LHchhqZB0fm7R5TCnVfMOsFUNhdq9r2i8iOGnpMG9cng=="
   },
   "bootstrap": {
     "version": "0.0.0-bootstrap.0",
@@ -37,5 +38,21 @@
     "sha256": "386d45bc298d57fc18b24e04ebb01194eb5f98f4ebf101d2572efe48070fbdf6",
     "integrity": "sha512-E6/4J6azPc+J6UBs0dv/recGgbW4gUsOzaGSW5g4a7I5OIY687EhNfgjuc1EWJeE/pu7UxlxzYDOWhOHL1L/qw=="
   },
-  "tagExceptionExpiresAt": "2026-09-25T23:59:59Z"
+  "intendedDistTag": "latest",
+  "previousRelease": {
+    "version": "1.1.0",
+    "bytes": 19323,
+    "sha256": "c2b2fbe7e182bda697178b817e57ded088e7d046c9de530674670e83fa516d8b",
+    "integrity": "sha512-B6zv2z66z7TKrp7GVtF3fI3ZtAQLEG7DUwVCT6iMoRO1SXZsxIMYLS+BHedQw4Km9c/4WQfnoG0cTorgIHLfOA=="
+  },
+  "registryBaseline": {
+    "versions": [
+      "0.0.0-bootstrap.0",
+      "1.1.0"
+    ],
+    "distTags": {
+      "bootstrap": "0.0.0-bootstrap.0",
+      "latest": "1.1.0"
+    }
+  }
 }

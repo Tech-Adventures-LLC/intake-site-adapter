@@ -1,4 +1,4 @@
-// Bounded intake-contract-v1 fields. Golden tests validate emitted commands against P01.
+// Bounded intake-contract-v2 fields. Golden tests validate emitted commands against P01.
 export const FIELD_LIMITS = Object.freeze({
   "contact": {
     "name": 160,
@@ -79,8 +79,7 @@ export function validCommand(command) {
   if (!contact || typeof contact.name !== 'string' || !contact.name.trim() || typeof contact.email !== 'string' || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contact.email)) return false;
   const consent = command.consent ?? {};
   const phoneConsent = consent.phone_contact === true || consent.sms === true;
-  if (consent.sms === true && consent.phone_contact !== true) return false;
   if (phoneConsent && (typeof contact.phone !== 'string' || !contact.phone.trim() || typeof consent.disclosure_version !== 'string' || !consent.disclosure_version.trim())) return false;
-  if (typeof consent.disclosure_version === 'string' && consent.disclosure_version.trim() && !phoneConsent) return false;
+  if (typeof consent.disclosure_version === 'string' && (!consent.disclosure_version.trim() || !phoneConsent)) return false;
   return true;
 }

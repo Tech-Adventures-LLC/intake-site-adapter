@@ -1,5 +1,16 @@
 # Upgrade and rollback policy
 
+## 2.0.0 preparation (unpublished)
+
+Negotiates `intake-contract-v2` and preserves independent phone-call and SMS
+choices without inferring one from the other. Either affirmative choice still
+requires a nonblank phone and disclosure; the authenticated API authorizes the
+disclosure. Canaries require the same exact v2 header/body and release identity.
+The Node 20 floor, bounded transport, stable idempotency, purpose isolation and
+safe responses remain. Publication, consuming-site activation and live sends
+require their separate approval gates. Immutable 1.1.0 remains available for
+compatible v1 callers and is regression-tested from its verified artifact.
+
 ## 1.1.0 preparation
 
 Adds bounded current v1 mapping/consent validation, safe UUID logging, strict

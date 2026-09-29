@@ -9,15 +9,21 @@ const OWNER_ID = 142938424;
 const OWNER_LOGIN = 'ii-am-modiify';
 const REQUEST_TIMEOUT_MS = 5000;
 const PACKAGE_NAME = '@tech-adventures-llc/intake-site-adapter';
-const USABLE_SHA256 = 'c2b2fbe7e182bda697178b817e57ded088e7d046c9de530674670e83fa516d8b';
-const USABLE_SRI = 'sha512-B6zv2z66z7TKrp7GVtF3fI3ZtAQLEG7DUwVCT6iMoRO1SXZsxIMYLS+BHedQw4Km9c/4WQfnoG0cTorgIHLfOA==';
+const USABLE_VERSION = '2.0.0';
+const USABLE_BYTES = 19629;
+const USABLE_SHA256 = '79bde19a1146871f2b87ae237bc469d31c42cc28ecd7cfd51772d9691f499676';
+const USABLE_SRI = 'sha512-esndSi0gwacIvxMbiKFkXQOYaEyGg/SuSvgCNV+kf1LHchhqZB0fm7R5TCnVfMOsFUNhdq9r2i8iOGnpMG9cng==';
+const PREVIOUS_VERSION = '1.1.0';
+const PREVIOUS_BYTES = 19323;
+const PREVIOUS_SHA256 = 'c2b2fbe7e182bda697178b817e57ded088e7d046c9de530674670e83fa516d8b';
+const PREVIOUS_SRI = 'sha512-B6zv2z66z7TKrp7GVtF3fI3ZtAQLEG7DUwVCT6iMoRO1SXZsxIMYLS+BHedQw4Km9c/4WQfnoG0cTorgIHLfOA==';
 const BOOTSTRAP_VERSION = '0.0.0-bootstrap.0';
 const BOOTSTRAP_BYTES = 4535;
 const BOOTSTRAP_SHA256 = '386d45bc298d57fc18b24e04ebb01194eb5f98f4ebf101d2572efe48070fbdf6';
 const BOOTSTRAP_SRI = 'sha512-E6/4J6azPc+J6UBs0dv/recGgbW4gUsOzaGSW5g4a7I5OIY687EhNfgjuc1EWJeE/pu7UxlxzYDOWhOHL1L/qw==';
-const TAG_EXCEPTION_EXPIRY = '2026-09-25T23:59:59Z';
 const REGISTRY_METADATA_URL = 'https://registry.npmjs.org/@tech-adventures-llc%2fintake-site-adapter';
 const REGISTRY_TAGS_URL = 'https://registry.npmjs.org/-/package/@tech-adventures-llc%2fintake-site-adapter/dist-tags';
+const PREVIOUS_URL = 'https://registry.npmjs.org/@tech-adventures-llc/intake-site-adapter/-/intake-site-adapter-1.1.0.tgz';
 const BOOTSTRAP_URL = 'https://registry.npmjs.org/@tech-adventures-llc/intake-site-adapter/-/intake-site-adapter-0.0.0-bootstrap.0.tgz';
 const digest = (bytes, algorithm = 'sha256', encoding = 'hex') => createHash(algorithm).update(bytes).digest(encoding);
 const isObject = value => value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -43,20 +49,25 @@ function assertAuthority(authority) {
   const reviewer = authority?.reviewPolicy?.requiredReviewer;
   requireCondition(authority?.publicRepository === PUBLIC_REPOSITORY && authority.publicRepositoryId === PUBLIC_REPOSITORY_ID
     && authority.environment === 'npm-release' && authority.workflowFilename === 'release-adapter.yml'
-    && authority.npmPackage === '@tech-adventures-llc/intake-site-adapter' && authority.version === '1.1.0'
-    && authority.intendedPublisherAction === 'publish' && authority.reviewPolicy?.mode === 'sole-owner'
+    && authority.npmPackage === '@tech-adventures-llc/intake-site-adapter' && authority.version === USABLE_VERSION
+    && authority.intendedPublisherAction === 'publish' && authority.intendedDistTag === 'latest' && authority.reviewPolicy?.mode === 'sole-owner'
     && reviewer?.type === 'User' && reviewer.id === OWNER_ID && reviewer.login === OWNER_LOGIN,
   'release_authority_mismatch');
-  requireCondition(authority.reviewedArtifact?.sha256 === USABLE_SHA256 && authority.reviewedArtifact?.integrity === USABLE_SRI
+  requireCondition(authority.reviewedArtifact?.bytes === USABLE_BYTES && authority.reviewedArtifact?.sha256 === USABLE_SHA256 && authority.reviewedArtifact?.integrity === USABLE_SRI
     && authority.bootstrap?.version === BOOTSTRAP_VERSION && authority.bootstrap?.bytes === BOOTSTRAP_BYTES
     && authority.bootstrap?.sha256 === BOOTSTRAP_SHA256 && authority.bootstrap?.integrity === BOOTSTRAP_SRI
-    && authority.tagExceptionExpiresAt === TAG_EXCEPTION_EXPIRY, 'release_authority_mismatch');
+    && authority.previousRelease?.version === PREVIOUS_VERSION && authority.previousRelease?.bytes === PREVIOUS_BYTES
+    && authority.previousRelease?.sha256 === PREVIOUS_SHA256 && authority.previousRelease?.integrity === PREVIOUS_SRI
+    && Array.isArray(authority.registryBaseline?.versions) && authority.registryBaseline.versions.length === 2
+    && authority.registryBaseline.versions[0] === BOOTSTRAP_VERSION && authority.registryBaseline.versions[1] === PREVIOUS_VERSION
+    && isObject(authority.registryBaseline.distTags) && Object.keys(authority.registryBaseline.distTags).length === 2
+    && authority.registryBaseline.distTags.bootstrap === BOOTSTRAP_VERSION && authority.registryBaseline.distTags.latest === PREVIOUS_VERSION
+    && !Object.hasOwn(authority, 'tagExceptionExpiresAt'), 'release_authority_mismatch');
 }
 
-function assertTagExceptionCurrent(now) {
+function assertValidClock(now) {
   const current = now();
   requireCondition(current instanceof Date && Number.isFinite(current.getTime()), 'clock_invalid');
-  requireCondition(current.getTime() < Date.parse(TAG_EXCEPTION_EXPIRY), 'npm_tag_exception_expired');
 }
 
 async function readBoundedResponse(fetchImpl, url, { headers, credentials, maxBytes, category, json = true }) {
@@ -99,9 +110,9 @@ function readGitHubSettings(fetchImpl, repository, path, githubToken) {
   });
 }
 
-function assertBootstrapTags(tags) {
+function assertRegistryBaselineTags(tags) {
   requireCondition(isObject(tags) && Object.keys(tags).length === 2
-    && tags.bootstrap === BOOTSTRAP_VERSION && tags.latest === BOOTSTRAP_VERSION, 'npm_registry_tags_mismatch');
+    && tags.bootstrap === BOOTSTRAP_VERSION && tags.latest === PREVIOUS_VERSION, 'npm_registry_tags_mismatch');
 }
 
 async function assertRegistryPrerequisites(fetchImpl) {
@@ -111,23 +122,35 @@ async function assertRegistryPrerequisites(fetchImpl) {
     ...anonymous, maxBytes: 1048576, category: 'npm_registry_metadata_unavailable',
   });
   requireCondition(metadata.name === PACKAGE_NAME, 'npm_registry_identity_mismatch');
-  requireCondition(isObject(metadata.versions) && Object.keys(metadata.versions).length === 1
-    && Object.hasOwn(metadata.versions, BOOTSTRAP_VERSION), 'npm_registry_version_mismatch');
-  const bootstrap = metadata.versions[BOOTSTRAP_VERSION];
-  requireCondition(bootstrap?.name === PACKAGE_NAME && bootstrap.version === BOOTSTRAP_VERSION, 'npm_registry_identity_mismatch');
-  requireCondition(bootstrap.dist?.integrity === BOOTSTRAP_SRI, 'npm_bootstrap_integrity_mismatch');
-  assertBootstrapTags(metadata['dist-tags']);
+  requireCondition(isObject(metadata.versions) && Object.keys(metadata.versions).length === 2
+    && Object.hasOwn(metadata.versions, BOOTSTRAP_VERSION) && Object.hasOwn(metadata.versions, PREVIOUS_VERSION), 'npm_registry_version_mismatch');
+  const retained = [
+    { version: BOOTSTRAP_VERSION, bytes: BOOTSTRAP_BYTES, sha256: BOOTSTRAP_SHA256, integrity: BOOTSTRAP_SRI,
+      url: BOOTSTRAP_URL, maxBytes: 8192, category: 'npm_bootstrap' },
+    { version: PREVIOUS_VERSION, bytes: PREVIOUS_BYTES, sha256: PREVIOUS_SHA256, integrity: PREVIOUS_SRI,
+      url: PREVIOUS_URL, maxBytes: 32768, category: 'npm_previous' },
+  ];
+  for (const artifact of retained) {
+    const published = metadata.versions[artifact.version];
+    requireCondition(published?.name === PACKAGE_NAME && published.version === artifact.version, 'npm_registry_identity_mismatch');
+    requireCondition(published.dist?.integrity === artifact.integrity, `${artifact.category}_integrity_mismatch`);
+  }
+  assertRegistryBaselineTags(metadata['dist-tags']);
   const tags = await readBoundedResponse(fetchImpl, REGISTRY_TAGS_URL, {
     ...anonymous, maxBytes: 65536, category: 'npm_registry_tags_unavailable',
   });
-  assertBootstrapTags(tags);
-  // Ignore dist.tarball entirely: metadata cannot choose a network destination.
-  const bytes = await readBoundedResponse(fetchImpl, BOOTSTRAP_URL, {
-    credentials: 'omit', headers: { accept: 'application/octet-stream' },
-    maxBytes: 8192, category: 'npm_bootstrap_tarball_unavailable', json: false,
-  });
-  requireCondition(bytes.length === BOOTSTRAP_BYTES && digest(bytes) === BOOTSTRAP_SHA256
-    && `sha512-${digest(bytes, 'sha512', 'base64')}` === BOOTSTRAP_SRI, 'npm_bootstrap_artifact_mismatch');
+  assertRegistryBaselineTags(tags);
+  // Both previously published artifacts remain immutable. Ignore dist.tarball:
+  // neither retained version's metadata may choose a network destination.
+  for (const artifact of retained) {
+    const bytes = await readBoundedResponse(fetchImpl, artifact.url, {
+      credentials: 'omit', headers: { accept: 'application/octet-stream' },
+      maxBytes: artifact.maxBytes, category: `${artifact.category}_tarball_unavailable`, json: false,
+    });
+    requireCondition(bytes.length === artifact.bytes && digest(bytes) === artifact.sha256
+      && `sha512-${digest(bytes, 'sha512', 'base64')}` === artifact.integrity, `${artifact.category}_artifact_mismatch`);
+  }
+
 }
 
 export async function checkReleasePreparation({ metadata, authority, bytes, expectedDigest, sourceSha, reviewedSourceSha, repository, fetchImpl = fetch, githubToken, ref, eventName, actorId, triggeringActor, runId, now = () => new Date() }) {
@@ -135,10 +158,10 @@ export async function checkReleasePreparation({ metadata, authority, bytes, expe
   requireCondition(repository === PUBLIC_REPOSITORY && metadata?.repository?.type === 'git'
     && metadata.repository.url === `git+https://github.com/${PUBLIC_REPOSITORY}.git`
     && metadata.repository.directory === 'packages/intake-site-adapter', 'public_source_identity_missing');
-  requireCondition(metadata.name === PACKAGE_NAME && metadata.version === '1.1.0', 'release_package_mismatch');
-  requireCondition(expectedDigest === USABLE_SHA256 && `sha512-${digest(bytes, 'sha512', 'base64')}` === USABLE_SRI, 'release_artifact_mismatch');
+  requireCondition(metadata.name === PACKAGE_NAME && metadata.version === USABLE_VERSION, 'release_package_mismatch');
+  requireCondition(bytes.length === USABLE_BYTES && expectedDigest === USABLE_SHA256 && `sha512-${digest(bytes, 'sha512', 'base64')}` === USABLE_SRI, 'release_artifact_mismatch');
   assertAuthority(authority);
-  assertTagExceptionCurrent(now);
+  assertValidClock(now);
   requireCondition(ref === 'refs/heads/main' && eventName === 'workflow_dispatch'
     && actorId === String(OWNER_ID) && triggeringActor === OWNER_LOGIN
     && typeof runId === 'string' && /^[1-9][0-9]*$/.test(runId)
@@ -161,7 +184,7 @@ export async function checkReleasePreparation({ metadata, authority, bytes, expe
   const environment = await readGitHubSettings(fetchImpl, repository, '/environments/npm-release', githubToken);
   assertProtectedEnvironment(environment);
   await assertRegistryPrerequisites(fetchImpl);
-  assertTagExceptionCurrent(now);
+  assertValidClock(now);
   // Historical setup evidence is not a runtime trust/2FA check. Current npm trust
   // is enforced only by the separately protected OIDC publication operation.
   return {

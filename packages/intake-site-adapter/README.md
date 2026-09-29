@@ -1,12 +1,15 @@
 # Intake site adapter
 
 `@tech-adventures-llc/intake-site-adapter` provides server-side lead and canary
-handlers for `intake-contract-v1`. Node.js 20 and 22 are supported. It has no
+handlers for `intake-contract-v2`. Node.js 20 and 22 are supported. It has no
 runtime dependencies. Pin the exact approved version and commit the lockfile:
 
 ```sh
-npm install --save-exact @tech-adventures-llc/intake-site-adapter@1.1.0
+npm install --save-exact @tech-adventures-llc/intake-site-adapter@2.0.0
 ```
+
+**Unpublished preparation:** 2.0.0 requires a separate reviewed release packet.
+Existing compatible consumers retain their exact verified 1.1.0 artifact.
 
 Use the public registry only after the public release has been independently
 verified. A local candidate install does not establish public availability.
@@ -52,12 +55,12 @@ tenants, recipients, provider accounts or retry policy.
 The form map has four closed sections: contact, details, attribution and
 consent. Selectors read own properties through a dotted path or use a string/
 boolean `{ literal: value }`. Sensitive paths and unknown destination fields
-are rejected. All current v1 detail fields, first/last-touch attribution and
+are rejected. All current v2 detail fields, first/last-touch attribution and
 consent fields retain contract types and limits; invalid mapped values fail
 before any transport. Explicit empty strings in boolean consent fields are
 invalid; absent fields and valid booleans remain distinct. Empty optional text
 keeps its omission behavior. Phone or SMS consent requires a nonblank phone and
-disclosure version; SMS also requires phone consent. Disclosure authorization
+disclosure version; phone-call and SMS choices are independent; either may be false. Disclosure authorization
 remains Intake's responsibility. Unmapped browser fields cannot affect routing.
 
 An optional `honeypotField` defaults to `website`. Nonempty honeypots fail with
@@ -71,7 +74,7 @@ the same UUID. Only transport failures, 429 and 500/502/503/504 retry; delays
 start at 100/200 ms or bounded `Retry-After`, capped at two seconds. Permanent
 caller errors and authorization/conflict responses do not retry.
 
-Successful responses require v1 and immutable release headers, a UUID lead ID,
+Successful responses require v2 and immutable release headers, a UUID lead ID,
 `received` or `held_for_review`, and a boolean duplicate flag. Extra upstream
 fields are discarded. HTTP 200 must acknowledge `duplicate: true`, and HTTP 202
 must acknowledge `duplicate: false`; contradictory pairs fail closed. Errors

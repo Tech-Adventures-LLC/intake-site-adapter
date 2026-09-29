@@ -7,6 +7,8 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 export const PACKAGE_FILES = Object.freeze(['CHANGELOG.md', 'LICENSE', 'NOTICE', 'README.md', 'SECURITY.md', 'index.d.ts', 'index.js', 'package.json', 'validation.js', 'verify-route-worker.js', 'verify-route.d.ts', 'verify-route.js']);
 const PACKAGE_NAME = '@tech-adventures-llc/intake-site-adapter';
+const PACKAGE_VERSION = '2.0.0';
+const CONTRACT_VERSION = 'intake-contract-v2';
 const ROOT = fileURLToPath(new URL('../', import.meta.url));
 const digest = (bytes, algorithm = 'sha256', encoding = 'hex') => createHash(algorithm).update(bytes).digest(encoding);
 const json = path => JSON.parse(readFileSync(path, 'utf8'));
@@ -62,9 +64,15 @@ function sourceExport(root, output, files, authority) {
   const target = join(output, 'public-source'); mkdirSync(target);
   for (const file of files) copiedFile(join(root, 'packages/intake-site-adapter', file), join(target, 'packages/intake-site-adapter', file));
   const paths = [
-    ...readdirSync(join(root, 'test')).filter(file => /^(?:intake-(?:site-)?adapter.*|canary-promotion-guard)\.test\.js$/.test(file)).map(file => `test/${file}`),
+    // Keep private site mappings and the platform integration guide out of the
+    // public source. Add reusable checks deliberately to this export allowlist.
+    ...['canary-promotion-guard', 'intake-site-adapter', 'intake-adapter-bootstrap',
+      'intake-adapter-consent-v2', 'intake-adapter-hardening', 'intake-adapter-package',
+      'intake-adapter-publication', 'intake-adapter-runner', 'intake-adapter-verifier']
+      .map(name => `test/${name}.test.js`),
+    'test/fixtures/intake-adapter-1.1.0.tgz',
     'qa/fixtures/canary-routes/vercel.js', 'qa/fixtures/canary-routes/web.js', 'qa/fixtures/canary-routes/public.js',
-    'contracts/intake/v1/lead-command.schema.json', 'contracts/intake/v1/error-response.schema.json',
+    'contracts/intake/v2/lead-command.schema.json', 'contracts/intake/v2/error-response.schema.json',
     'scripts/adapter-test-reporter.js', 'scripts/run-adapter-tests.js', 'scripts/prepare-adapter-package.js',
     'scripts/prepare-adapter-bootstrap.js',
     'scripts/check-adapter-release.js', 'scripts/publish-adapter.js', 'release/adapter-publication.yml.template', 'release/adapter-release-authority.json',
@@ -72,7 +80,7 @@ function sourceExport(root, output, files, authority) {
   ];
   for (const file of paths) copiedFile(join(root, file), join(target, file));
   const development = { ajv: '8.18.0', 'ajv-formats': '3.0.1', typescript: '5.9.3' };
-  const metadata = { name: 'intake-adapter-public-source', version: '1.1.0', private: true, type: 'module', scripts: { test: 'node scripts/run-adapter-tests.js', 'adapter:test': 'node scripts/run-adapter-tests.js', 'adapter:pack': 'node scripts/prepare-adapter-package.js', 'bootstrap:prepare': 'node scripts/prepare-adapter-bootstrap.js' }, devDependencies: development, engines: { node: '>=20' } };
+  const metadata = { name: 'intake-adapter-public-source', version: PACKAGE_VERSION, private: true, type: 'module', scripts: { test: 'node scripts/run-adapter-tests.js', 'adapter:test': 'node scripts/run-adapter-tests.js', 'adapter:pack': 'node scripts/prepare-adapter-package.js', 'bootstrap:prepare': 'node scripts/prepare-adapter-bootstrap.js' }, devDependencies: development, engines: { node: '>=20' } };
   writeJSON(join(target, 'package.json'), metadata);
   const lock = json(join(root, 'package-lock.json'));
   const packages = { '': { name: metadata.name, version: metadata.version, devDependencies: development, engines: metadata.engines } };
@@ -89,13 +97,22 @@ function sourceExport(root, output, files, authority) {
   const identityReadme = identity.status === 'configured-not-live-verified'
     ? `Configured public source identity: ${identity.repository}. This is configuration only; live repository ownership is not verified.`
     : 'Public source identity is missing or mismatched. Publication remains blocked until matching repository metadata and authority are configured.';
-  writeFileSync(join(target, 'README.md'), `# Intake site adapter public source\n\n${identityReadme}\n\nThis package-only source supports Node.js 20 and newer. Run \`npm ci --ignore-scripts --registry=https://registry.npmjs.org\`, \`npm test\`, \`npm run adapter:pack\`, and \`npm run bootstrap:prepare\` for local preparation. It contains reusable adapter code, public contracts, and synthetic checks only. The bootstrap is an unusable setup prerelease, never a site dependency. Owner setup was independently verified on 2026-09-19; this local export does not verify current settings. Publication remains blocked pending reviewed workflow activation and exact-artifact owner approval, fresh protected GitHub and registry prerequisite checks, the actual OIDC publication, and registry/provenance verification.\n`);
+  writeFileSync(join(target, 'README.md'), `# Intake site adapter public source\n\n${identityReadme}\n\nThis is unpublished ${PACKAGE_VERSION} preparation for ${CONTRACT_VERSION}. This export contains a local candidate release policy for this version; it does not record owner approval or activate a workflow. This package-only source supports Node.js 20 and newer. Run \`npm ci --ignore-scripts --registry=https://registry.npmjs.org\`, \`npm test\`, \`npm run adapter:pack\`, and \`npm run bootstrap:prepare\` for local preparation. It contains reusable adapter code, public contracts, and synthetic checks only. The bootstrap is an unusable setup prerelease, never a site dependency. Owner setup was independently verified on 2026-09-19; this local export does not verify current settings. Publication remains blocked pending reviewed workflow activation and exact-artifact owner approval, fresh protected GitHub and registry prerequisite checks, the actual OIDC publication, and registry/provenance verification.\n`);
   const manifest = [];
   function walk(directory, prefix = '') {
     for (const name of readdirSync(directory).sort()) {
       const relative = `${prefix}${name}`, absolute = join(directory, name);
       if (lstatSync(absolute).isDirectory()) walk(absolute, `${relative}/`);
-      else { const bytes = readFileSync(absolute); requireCondition(auditPublicBytes(bytes).length === 0, 'public_export_audit_failed'); manifest.push({ path: relative, size: bytes.length, sha256: digest(bytes) }); }
+      else {
+        const bytes = readFileSync(absolute);
+        // Historical release tests use one immutable public artifact, never a
+        // second editable adapter tree. Other binary export contents fail closed.
+        const frozenArtifact = relative === 'test/fixtures/intake-adapter-1.1.0.tgz';
+        requireCondition(frozenArtifact
+          ? bytes.length === 19323 && digest(bytes) === 'c2b2fbe7e182bda697178b817e57ded088e7d046c9de530674670e83fa516d8b'
+          : auditPublicBytes(bytes).length === 0, 'public_export_audit_failed');
+        manifest.push({ path: relative, size: bytes.length, sha256: digest(bytes) });
+      }
     }
   }
   walk(target); writeJSON(join(output, 'public-source-manifest.json'), manifest);
@@ -112,7 +129,7 @@ export function prepareAdapterPackage({ root = ROOT, output, exportPublicSource 
     const npm = (args, cwd, category) => command(process.execPath, [npmPath(), ...args], cwd, env, category);
     const source = join(root, 'packages/intake-site-adapter'), staged = join(temporary, 'intake-site-adapter'); mkdirSync(staged);
     const metadata = json(join(source, 'package.json'));
-    requireCondition(metadata.name === PACKAGE_NAME && metadata.version === '1.1.0' && metadata.license === 'Apache-2.0' && metadata.type === 'module' && metadata.engines?.node === '>=20', 'package_identity_invalid');
+    requireCondition(metadata.name === PACKAGE_NAME && metadata.version === PACKAGE_VERSION && metadata.license === 'Apache-2.0' && metadata.type === 'module' && metadata.engines?.node === '>=20', 'package_identity_invalid');
     requireCondition(!metadata.dependencies && !metadata.devDependencies && !metadata.scripts && metadata.publishConfig?.registry === 'https://registry.npmjs.org' && metadata.publishConfig?.access === 'public', 'package_policy_invalid');
     requireCondition(JSON.stringify([...metadata.files, 'package.json'].sort()) === JSON.stringify(PACKAGE_FILES), 'package_allowlist_invalid');
     for (const file of PACKAGE_FILES) {
@@ -141,11 +158,11 @@ export function prepareAdapterPackage({ root = ROOT, output, exportPublicSource 
     requireCondition(consumerLock.packages[`node_modules/${PACKAGE_NAME}`]?.integrity === integrity, 'lock_integrity_mismatch');
     for (const file of PACKAGE_FILES) requireCondition(readFileSync(join(consumer, 'node_modules', PACKAGE_NAME, file)).equals(readFileSync(join(source, file))), 'installed_source_mismatch');
     writeFileSync(join(consumer, 'route.mjs'), `import {createCanaryHandler} from '${PACKAGE_NAME}'; export default createCanaryHandler({source:'fixture-site',logger:null});\n`);
-    writeFileSync(join(consumer, 'consumer.mjs'), `import assert from 'node:assert/strict'; import * as adapter from '${PACKAGE_NAME}'; import * as verifier from '${PACKAGE_NAME}/verify-route'; assert.equal(adapter.ADAPTER_VERSION,'1.1.0'); assert.equal(adapter.CONTRACT_VERSION,'intake-contract-v1'); for(const name of ['createIntakeHandler','createCanaryHandler','createWebHandler','verifyCanaryHandler','SiteAdapterConfigurationError']) assert.equal(typeof adapter[name],'function'); assert.deepEqual(Object.keys(verifier),['verifyCanaryRoute']); const result=await verifier.verifyCanaryRoute({routePath:'route.mjs',source:'fixture-site'}); assert.equal(result.ok,true); assert.equal(result.adapter_version,adapter.ADAPTER_VERSION);\n`);
+    writeFileSync(join(consumer, 'consumer.mjs'), `import assert from 'node:assert/strict'; import * as adapter from '${PACKAGE_NAME}'; import * as verifier from '${PACKAGE_NAME}/verify-route'; assert.equal(adapter.ADAPTER_VERSION,'${PACKAGE_VERSION}'); assert.equal(adapter.CONTRACT_VERSION,'${CONTRACT_VERSION}'); for(const name of ['createIntakeHandler','createCanaryHandler','createWebHandler','verifyCanaryHandler','SiteAdapterConfigurationError']) assert.equal(typeof adapter[name],'function'); assert.deepEqual(Object.keys(verifier),['verifyCanaryRoute']); const result=await verifier.verifyCanaryRoute({routePath:'route.mjs',source:'fixture-site'}); assert.equal(result.ok,true); assert.equal(result.adapter_version,adapter.ADAPTER_VERSION);\n`);
     command(process.execPath, ['consumer.mjs'], consumer, env, 'runtime_consumer_failed');
     const cli = JSON.parse(command(process.execPath, [join(consumer, 'node_modules/.bin/intake-verify-canary-route'), '--route', 'route.mjs', '--source', 'fixture-site'], consumer, env, 'cli_consumer_failed'));
-    requireCondition(cli.ok === true && cli.adapter_version === '1.1.0', 'cli_result_invalid');
-    writeFileSync(join(consumer, 'consumer.mts'), `import {ADAPTER_VERSION,CONTRACT_VERSION,createIntakeHandler,createCanaryHandler,createWebHandler,verifyCanaryHandler,SiteAdapterConfigurationError,type NodeHandler} from '${PACKAGE_NAME}';\nimport {verifyCanaryRoute,type VerificationResult} from '${PACKAGE_NAME}/verify-route';\nconst version:'1.1.0'=ADAPTER_VERSION; const contract:'intake-contract-v1'=CONTRACT_VERSION;\nconst handler:NodeHandler=createIntakeHandler({formMap:{contact:{name:'name',email:'email'},details:{notes:'notes'}},turnstile:{action:'contact',allowedHostnames:['example.com']},logger:null});\nconst web:(request:Request)=>Promise<Response>=createWebHandler(handler); const canary=createCanaryHandler({source:'fixture-site',logger:null});\nconst check:Promise<VerificationResult>=verifyCanaryRoute({routePath:'route.mjs',source:'fixture-site',timeoutMs:1000}); verifyCanaryHandler(canary); new SiteAdapterConfigurationError('configuration');\n// @ts-expect-error unknown authority field is not a form-map destination\ncreateIntakeHandler({formMap:{contact:{tenant_id:'tenant'}},turnstile:{action:'contact',allowedHostnames:['example.com']}});\n// @ts-expect-error historical declaration exported a nonexistent API\nimport {verifyRoute} from '${PACKAGE_NAME}/verify-route';\nvoid [version,contract,web,check];\n`);
+    requireCondition(cli.ok === true && cli.adapter_version === PACKAGE_VERSION, 'cli_result_invalid');
+    writeFileSync(join(consumer, 'consumer.mts'), `import {ADAPTER_VERSION,CONTRACT_VERSION,createIntakeHandler,createCanaryHandler,createWebHandler,verifyCanaryHandler,SiteAdapterConfigurationError,type NodeHandler} from '${PACKAGE_NAME}';\nimport {verifyCanaryRoute,type VerificationResult} from '${PACKAGE_NAME}/verify-route';\nconst version:'${PACKAGE_VERSION}'=ADAPTER_VERSION; const contract:'${CONTRACT_VERSION}'=CONTRACT_VERSION;\nconst handler:NodeHandler=createIntakeHandler({formMap:{contact:{name:'name',email:'email'},details:{notes:'notes'}},turnstile:{action:'contact',allowedHostnames:['example.com']},logger:null});\nconst web:(request:Request)=>Promise<Response>=createWebHandler(handler); const canary=createCanaryHandler({source:'fixture-site',logger:null});\nconst check:Promise<VerificationResult>=verifyCanaryRoute({routePath:'route.mjs',source:'fixture-site',timeoutMs:1000}); verifyCanaryHandler(canary); new SiteAdapterConfigurationError('configuration');\n// @ts-expect-error unknown authority field is not a form-map destination\ncreateIntakeHandler({formMap:{contact:{tenant_id:'tenant'}},turnstile:{action:'contact',allowedHostnames:['example.com']}});\n// @ts-expect-error historical declaration exported a nonexistent API\nimport {verifyRoute} from '${PACKAGE_NAME}/verify-route';\nvoid [version,contract,web,check];\n`);
     writeJSON(join(consumer, 'tsconfig.json'), { compilerOptions: { noEmit: true, strict: true, module: 'NodeNext', target: 'ES2022', lib: ['ES2022', 'DOM'], types: [] }, files: ['consumer.mts'] });
     command(process.execPath, [join(root, 'node_modules/typescript/lib/tsc.js'), '--project', 'tsconfig.json'], consumer, env, 'type_consumer_failed');
     npm(['install', '--package-lock-only', '--offline', '--ignore-scripts', '--no-audit', '--no-fund'], staged, 'sbom_lock_failed');
@@ -158,7 +175,7 @@ export function prepareAdapterPackage({ root = ROOT, output, exportPublicSource 
     const exported = exportPublicSource ? sourceExport(root, output, PACKAGE_FILES, authority) : null;
     const identity = sourceIdentity(metadata, authority);
     const identityBlocker = identity.status === 'configured-not-live-verified' ? 'public_source_ownership_not_live_verified' : 'approved_public_source_identity_missing';
-    const report = { status: 'local-preparation-only', package: PACKAGE_NAME, version: metadata.version, node: process.version, npm: npm(['--version'], staged, 'npm_version_failed').trim(), tarball: first.filename, bytes: tarball.length, sha256: digest(tarball), integrity, packed_files: manifest.length, reproducible_pack: true, every_packed_byte_matches_source: true, offline_install_and_ci: true, lock_integrity_verified: true, runtime_cli_types: true, runtime_dependencies: 0, source_identity: identity, source_export: exported, publication_ready: false, publication_blockers: [identityBlocker, 'protected_workflow_activation_and_exact_artifact_owner_approval_required', 'fresh_protected_github_and_registry_prerequisites_required', 'actual_oidc_publication_required', 'registry_publication_and_provenance_unverified'] };
+    const report = { status: 'local-preparation-only', package: PACKAGE_NAME, version: metadata.version, node: process.version, npm: npm(['--version'], staged, 'npm_version_failed').trim(), tarball: first.filename, bytes: tarball.length, sha256: digest(tarball), integrity, packed_files: manifest.length, reproducible_pack: true, every_packed_byte_matches_source: true, offline_install_and_ci: true, lock_integrity_verified: true, runtime_cli_types: true, runtime_dependencies: 0, source_identity: identity, source_export: exported, publication_ready: false, publication_blockers: ['exact_version_release_packet_and_owner_approval_required', identityBlocker, 'protected_workflow_activation_and_exact_artifact_owner_approval_required', 'fresh_protected_github_and_registry_prerequisites_required', 'actual_oidc_publication_required', 'registry_publication_and_provenance_unverified'] };
     writeJSON(join(output, 'preparation.json'), report); return { output, ...report };
   } finally { rmSync(temporary, { recursive: true, force: true }); }
 }
