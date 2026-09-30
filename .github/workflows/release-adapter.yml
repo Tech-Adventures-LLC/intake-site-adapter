@@ -1,4 +1,4 @@
-# INACTIVE REVIEW TEMPLATE. Activation on public protected main and exact 1.1.0
+# INACTIVE REVIEW TEMPLATE. Activation on public protected main and exact 2.0.0
 # publication require separate owner approval. Never install in private CI.
 name: Publish reviewed adapter
 on:
@@ -65,7 +65,7 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: reviewed-adapter-tarball
-          path: reviewed-artifact/tech-adventures-llc-intake-site-adapter-1.1.0.tgz
+          path: reviewed-artifact/tech-adventures-llc-intake-site-adapter-2.0.0.tgz
           if-no-files-found: error
           overwrite: false
           retention-days: 7
@@ -126,7 +126,7 @@ jobs:
           REVIEWED_SOURCE_SHA: ${{ inputs.reviewed_source_sha }}
           REVIEWED_TARBALL_SHA256: ${{ inputs.reviewed_tarball_sha256 }}
           GITHUB_TOKEN: ${{ github.token }}
-        run: node scripts/publish-adapter.js reviewed-artifact/tech-adventures-llc-intake-site-adapter-1.1.0.tgz
+        run: node scripts/publish-adapter.js reviewed-artifact/tech-adventures-llc-intake-site-adapter-2.0.0.tgz
       # The runner performs the real preflight, validates hosted provenance
       # context, and rechecks the isolated exact bytes immediately before its sole
       # npm child. A failed/ambiguous command must be reconciled separately:

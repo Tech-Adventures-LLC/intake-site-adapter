@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { copyFileSync, cpSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -30,8 +30,14 @@ test('real package is reproducible, byte-audited, integrity-installed and consum
     assert.equal(result.reproducible_pack, true); assert.equal(result.runtime_cli_types, true); assert.equal(result.packed_files, 12); assert.equal(result.publication_ready, false);
     const manifest = JSON.parse(readFileSync(join(result.output, 'packed-files.json')));
     assert.equal(manifest.length, 12); assert.ok(manifest.every(file => /^[a-f0-9]{64}$/.test(file.sha256)));
-    const sbom = JSON.parse(readFileSync(join(result.output, 'sbom.cdx.json'))); assert.equal(sbom.bomFormat, 'CycloneDX'); assert.equal(sbom.metadata.component.version, '1.1.0');
+    const sbom = JSON.parse(readFileSync(join(result.output, 'sbom.cdx.json'))); assert.equal(sbom.bomFormat, 'CycloneDX'); assert.equal(sbom.metadata.component.version, '2.0.0');
     assert.ok(result.source_export.files > result.packed_files);
+    const exported = JSON.parse(readFileSync(join(result.output, 'public-source-manifest.json'))).map(file => file.path);
+    assert.ok(exported.includes('contracts/intake/v2/lead-command.schema.json'));
+    assert.ok(exported.includes('test/intake-adapter-consent-v2.test.js'));
+    assert.ok(!exported.some(file => /manual|integration-guide|consent-pilot/.test(file)));
+    assert.ok(exported.includes('test/fixtures/intake-adapter-1.1.0.tgz'));
+    assert.ok(result.publication_blockers.includes('exact_version_release_packet_and_owner_approval_required'));
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
 
@@ -104,27 +110,33 @@ const PUBLIC_REPOSITORY = 'Tech-Adventures-LLC/intake-site-adapter';
 const OWNER = { type: 'User', reviewer: { id: 142938424, login: 'ii-am-modiify' } };
 const SOURCE_SHA = 'a'.repeat(40);
 const PACKAGE_NAME = '@tech-adventures-llc/intake-site-adapter';
-const USABLE_SHA256 = 'c2b2fbe7e182bda697178b817e57ded088e7d046c9de530674670e83fa516d8b';
+const USABLE_SHA256 = '79bde19a1146871f2b87ae237bc469d31c42cc28ecd7cfd51772d9691f499676';
+const PREVIOUS_SHA256 = 'c2b2fbe7e182bda697178b817e57ded088e7d046c9de530674670e83fa516d8b';
+const PREVIOUS_SRI = 'sha512-B6zv2z66z7TKrp7GVtF3fI3ZtAQLEG7DUwVCT6iMoRO1SXZsxIMYLS+BHedQw4Km9c/4WQfnoG0cTorgIHLfOA==';
+const PREVIOUS_URL = 'https://registry.npmjs.org/@tech-adventures-llc/intake-site-adapter/-/intake-site-adapter-1.1.0.tgz';
 const BOOTSTRAP_VERSION = '0.0.0-bootstrap.0';
 const BOOTSTRAP_SRI = 'sha512-E6/4J6azPc+J6UBs0dv/recGgbW4gUsOzaGSW5g4a7I5OIY687EhNfgjuc1EWJeE/pu7UxlxzYDOWhOHL1L/qw==';
 const REGISTRY_METADATA_URL = 'https://registry.npmjs.org/@tech-adventures-llc%2fintake-site-adapter';
 const REGISTRY_TAGS_URL = 'https://registry.npmjs.org/-/package/@tech-adventures-llc%2fintake-site-adapter/dist-tags';
 const BOOTSTRAP_URL = 'https://registry.npmjs.org/@tech-adventures-llc/intake-site-adapter/-/intake-site-adapter-0.0.0-bootstrap.0.tgz';
-const REGISTRY_TAGS = { bootstrap: BOOTSTRAP_VERSION, latest: BOOTSTRAP_VERSION };
+const REGISTRY_TAGS = { bootstrap: BOOTSTRAP_VERSION, latest: '1.1.0' };
 const REGISTRY_METADATA = {
   name: PACKAGE_NAME, 'dist-tags': REGISTRY_TAGS,
-  versions: { [BOOTSTRAP_VERSION]: { name: PACKAGE_NAME, version: BOOTSTRAP_VERSION, dist: { integrity: BOOTSTRAP_SRI, tarball: BOOTSTRAP_URL } } },
+  versions: { '1.1.0': { name: PACKAGE_NAME, version: '1.1.0', dist: { integrity: PREVIOUS_SRI, tarball: PREVIOUS_URL } }, [BOOTSTRAP_VERSION]: { name: PACKAGE_NAME, version: BOOTSTRAP_VERSION, dist: { integrity: BOOTSTRAP_SRI, tarball: BOOTSTRAP_URL } } },
 };
 let approvedArtifacts;
 function releaseArtifacts() {
   if (approvedArtifacts) return approvedArtifacts;
   const root = mkdtempSync(join(tmpdir(), 'release-approved-bytes-'));
   try {
-    const usable = prepareAdapterPackage({ output: join(root, 'usable') });
+    const previous = readFileSync(new URL('./fixtures/intake-adapter-1.1.0.tgz', import.meta.url));
+    const candidate = prepareAdapterPackage({ output: join(root, 'candidate'), exportPublicSource: false });
+    const usable = readFileSync(join(candidate.output, candidate.tarball));
+    assert.equal(createHash('sha256').update(previous).digest('hex'), PREVIOUS_SHA256);
     const bootstrap = prepareAdapterBootstrap({ output: join(root, 'bootstrap'), now: () => new Date('2026-09-19T00:00:00Z') });
-    assert.equal(usable.sha256, USABLE_SHA256);
+    assert.equal(createHash('sha256').update(usable).digest('hex'), USABLE_SHA256);
     assert.equal(bootstrap.sha256, '386d45bc298d57fc18b24e04ebb01194eb5f98f4ebf101d2572efe48070fbdf6');
-    approvedArtifacts = { usable: readFileSync(join(usable.output, usable.tarball)), bootstrap: readFileSync(join(bootstrap.output, bootstrap.tarball)) };
+    approvedArtifacts = { usable, previous, bootstrap: readFileSync(join(bootstrap.output, bootstrap.tarball)) };
     return approvedArtifacts;
   } finally { rmSync(root, { recursive: true, force: true }); }
 }
@@ -143,17 +155,17 @@ const RELEASE_RUN = {
 const RELEASE_BRANCH = { name: 'main', protected: true, commit: { sha: SOURCE_SHA } };
 function releaseInput(changes = {}) {
   return {
-    bytes: releaseArtifacts().usable, expectedDigest: USABLE_SHA256, now: () => new Date('2026-09-19T00:00:00Z'),
+    bytes: releaseArtifacts().usable, expectedDigest: USABLE_SHA256, now: () => new Date('2026-09-29T00:00:00Z'),
     sourceSha: SOURCE_SHA, reviewedSourceSha: SOURCE_SHA, repository: PUBLIC_REPOSITORY,
     githubToken: 'synthetic-token', ref: 'refs/heads/main', eventName: 'workflow_dispatch',
     actorId: '142938424', triggeringActor: 'ii-am-modiify', runId: '12345',
-    metadata: { name: PACKAGE_NAME, version: '1.1.0', repository: { type: 'git', url: `git+https://github.com/${PUBLIC_REPOSITORY}.git`, directory: 'packages/intake-site-adapter' } },
+    metadata: { name: PACKAGE_NAME, version: '2.0.0', repository: { type: 'git', url: `git+https://github.com/${PUBLIC_REPOSITORY}.git`, directory: 'packages/intake-site-adapter' } },
     authority: JSON.parse(readFileSync(new URL('../release/adapter-release-authority.json', import.meta.url))),
     ...changes,
   };
 }
 function releaseFetch(overrides = {}) {
-  const fixtures = { '': RELEASE_REPOSITORY, '/actions/runs/12345': RELEASE_RUN, '/branches/main': RELEASE_BRANCH, '/environments/npm-release': RELEASE_ENVIRONMENT, [REGISTRY_METADATA_URL]: REGISTRY_METADATA, [REGISTRY_TAGS_URL]: REGISTRY_TAGS, [BOOTSTRAP_URL]: releaseArtifacts().bootstrap, ...overrides };
+  const fixtures = { '': RELEASE_REPOSITORY, '/actions/runs/12345': RELEASE_RUN, '/branches/main': RELEASE_BRANCH, '/environments/npm-release': RELEASE_ENVIRONMENT, [REGISTRY_METADATA_URL]: REGISTRY_METADATA, [REGISTRY_TAGS_URL]: REGISTRY_TAGS, [BOOTSTRAP_URL]: releaseArtifacts().bootstrap, [PREVIOUS_URL]: releaseArtifacts().previous, ...overrides };
   const calls = [];
   const fetchImpl = async (url, options) => {
     const path = url.startsWith('https://api.github.com/') ? url.slice(`https://api.github.com/repos/${PUBLIC_REPOSITORY}`.length) : url;
@@ -197,7 +209,7 @@ test('exact reviewed artifacts, protected GitHub settings and anonymous registry
     ok: true, status: 'release_prerequisites_verified', npm_live_trust_verified: false,
     publication_verified: false, provenance_verified: false, owner_approval_verified: false,
   });
-  assert.deepEqual(calls.map(call => call.path), ['', '/actions/runs/12345', '/branches/main', '/environments/npm-release', REGISTRY_METADATA_URL, REGISTRY_TAGS_URL, BOOTSTRAP_URL]);
+  assert.deepEqual(calls.map(call => call.path), ['', '/actions/runs/12345', '/branches/main', '/environments/npm-release', REGISTRY_METADATA_URL, REGISTRY_TAGS_URL, BOOTSTRAP_URL, PREVIOUS_URL]);
   assert.ok(calls.every(call => call.options.redirect === 'error' && call.options.signal.aborted));
   assert.ok(calls.slice(0, 4).every(call => call.options.headers.authorization === 'Bearer synthetic-token'));
   assert.ok(calls.slice(4).every(call => !new Headers(call.options.headers).has('authorization') && call.options.credentials === 'omit'));
@@ -206,18 +218,26 @@ test('exact reviewed artifacts, protected GitHub settings and anonymous registry
 
 test('package identity and immutable approved digest cannot be replaced by owner input or authority edits', async () => {
   const noNetwork = async () => assert.fail('network must not be reached');
-  for (const edit of [{ name: 'other' }, { version: BOOTSTRAP_VERSION }, { version: undefined }]) {
+  for (const edit of [{ name: 'other' }, { version: BOOTSTRAP_VERSION }, { version: '1.1.0' }, { version: '2.0.1' }, { version: undefined }]) {
     await expectReleaseError(releaseInput({ metadata: { ...releaseInput().metadata, ...edit }, fetchImpl: noNetwork }), 'release_package_mismatch');
   }
   const bytes = Buffer.from('arbitrary owner-approved bytes');
   await expectReleaseError(releaseInput({ bytes, expectedDigest: createHash('sha256').update(bytes).digest('hex'), fetchImpl: noNetwork }), 'release_artifact_mismatch');
   for (const edit of [
+    authority => { authority.reviewedArtifact.bytes = 19630; },
     authority => { authority.reviewedArtifact.sha256 = 'b'.repeat(64); },
     authority => { authority.reviewedArtifact.integrity = 'sha512-other'; },
     authority => { authority.bootstrap.sha256 = 'b'.repeat(64); },
     authority => { authority.bootstrap.integrity = 'sha512-other'; },
     authority => { authority.bootstrap.bytes = 4536; },
     authority => { authority.bootstrap.version = 'other'; },
+    authority => { authority.previousRelease.sha256 = 'b'.repeat(64); },
+    authority => { authority.previousRelease.integrity = 'sha512-other'; },
+    authority => { authority.previousRelease.bytes = 19324; },
+    authority => { authority.previousRelease.version = '1.0.0'; },
+    authority => { authority.registryBaseline.distTags.latest = BOOTSTRAP_VERSION; },
+    authority => { authority.registryBaseline.versions.push('2.0.0'); },
+    authority => { authority.intendedDistTag = 'next'; },
     authority => { authority.tagExceptionExpiresAt = '2099-01-01T00:00:00Z'; },
   ]) {
     const authority = releaseInput().authority; edit(authority);
@@ -225,23 +245,31 @@ test('package identity and immutable approved digest cannot be replaced by owner
   }
 });
 
-test('tag exception expires at its exact boundary and rejects an invalid clock before requests', async () => {
-  const noNetwork = async () => assert.fail('network must not be reached');
-  for (const instant of ['2026-09-25T23:59:59Z', '2026-09-26T00:00:00Z'])
-    await expectReleaseError(releaseInput({ now: () => new Date(instant), fetchImpl: noNetwork }), 'npm_tag_exception_expired');
-  for (const value of [new Date('invalid'), '2026-09-19', null])
-    await expectReleaseError(releaseInput({ now: () => value, fetchImpl: noNetwork }), 'clock_invalid');
-  const result = await checkReleasePreparation(releaseInput({ now: () => new Date('2026-09-25T23:59:58.999Z'), fetchImpl: releaseFetch().fetchImpl }));
-  assert.equal(result.ok, true);
+test('ordinary 2.0 release checks remain eligible after the spent bootstrap exception expired', async () => {
+  for (const instant of ['2026-09-25T23:59:59Z', '2026-09-29T00:00:00Z', '2027-01-01T00:00:00Z']) {
+    const result = await checkReleasePreparation(releaseInput({ now: () => new Date(instant), fetchImpl: releaseFetch().fetchImpl }));
+    assert.equal(result.ok, true);
+    assert.equal(result.owner_approval_verified, false);
+    assert.equal(result.publication_verified, false);
+  }
+  for (const value of [new Date('invalid'), '2026-09-29', null])
+    await expectReleaseError(releaseInput({ now: () => value, fetchImpl: async () => assert.fail('network must not be reached') }), 'clock_invalid');
 });
 
-test('registry package and bootstrap identity, only-version state and immutable SRI fail closed', async () => {
+test('registry requires exactly both retained versions with immutable identity and SRI; existing 2.0 blocks', async () => {
   const cases = [
     [metadata => { metadata.name = 'other'; }, 'npm_registry_identity_mismatch'],
     [metadata => { delete metadata.versions; }, 'npm_registry_version_mismatch'],
     [metadata => { metadata.versions = []; }, 'npm_registry_version_mismatch'],
     [metadata => { metadata.versions = {}; }, 'npm_registry_version_mismatch'],
-    [metadata => { metadata.versions['1.1.0'] = {}; }, 'npm_registry_version_mismatch'],
+    [metadata => { delete metadata.versions['1.1.0']; }, 'npm_registry_version_mismatch'],
+    [metadata => { delete metadata.versions[BOOTSTRAP_VERSION]; }, 'npm_registry_version_mismatch'],
+    [metadata => { metadata.versions['3.0.0'] = {}; }, 'npm_registry_version_mismatch'],
+    [metadata => { metadata.versions['1.1.0'] = {}; }, 'npm_registry_identity_mismatch'],
+    [metadata => { metadata.versions['1.1.0'].version = '1.0.0'; }, 'npm_registry_identity_mismatch'],
+    [metadata => { metadata.versions['1.1.0'].name = 'other'; }, 'npm_registry_identity_mismatch'],
+    [metadata => { delete metadata.versions['1.1.0'].dist; }, 'npm_previous_integrity_mismatch'],
+    [metadata => { metadata.versions['1.1.0'].dist.integrity = 'sha512-other'; }, 'npm_previous_integrity_mismatch'],
     [metadata => { metadata.versions['2.0.0'] = {}; }, 'npm_registry_version_mismatch'],
     [metadata => { metadata.versions[BOOTSTRAP_VERSION].name = 'other'; }, 'npm_registry_identity_mismatch'],
     [metadata => { metadata.versions[BOOTSTRAP_VERSION].version = 'other'; }, 'npm_registry_identity_mismatch'],
@@ -258,7 +286,7 @@ test('registry package and bootstrap identity, only-version state and immutable 
 });
 
 test('both independent tag views must match exactly with no added, missing or changed tag', async () => {
-  for (const tags of [{}, { bootstrap: BOOTSTRAP_VERSION }, { ...REGISTRY_TAGS, next: '1.1.0' }, { ...REGISTRY_TAGS, latest: '1.1.0' }, [], null]) {
+  for (const tags of [{}, { bootstrap: BOOTSTRAP_VERSION }, { ...REGISTRY_TAGS, next: '1.1.0' }, { ...REGISTRY_TAGS, latest: BOOTSTRAP_VERSION }, { ...REGISTRY_TAGS, latest: '2.0.0' }, { ...REGISTRY_TAGS, bootstrap: '1.1.0' }, [], null]) {
     for (const endpoint of [REGISTRY_METADATA_URL, REGISTRY_TAGS_URL]) {
       const value = endpoint === REGISTRY_METADATA_URL ? { ...REGISTRY_METADATA, 'dist-tags': tags } : tags;
       const { fetchImpl } = releaseFetch({ [endpoint]: value });
@@ -267,23 +295,31 @@ test('both independent tag views must match exactly with no added, missing or ch
   }
 });
 
-test('bootstrap bytes must match exact length and both hashes; metadata cannot choose a request URL', async () => {
-  for (const bytes of [Buffer.from('short'), Buffer.concat([releaseArtifacts().bootstrap, Buffer.from('x')]), Buffer.from(releaseArtifacts().bootstrap).fill(0, 100, 101)]) {
-    const { fetchImpl, calls } = releaseFetch({ [BOOTSTRAP_URL]: bytes });
-    await expectReleaseError(releaseInput({ fetchImpl }), 'npm_bootstrap_artifact_mismatch');
-    assert.equal(calls.length, 7);
+test('both retained tarballs must match exact length and hashes; metadata cannot choose request URLs', async () => {
+  for (const [url, retained, category, requests] of [
+    [BOOTSTRAP_URL, releaseArtifacts().bootstrap, 'npm_bootstrap_artifact_mismatch', 7],
+    [PREVIOUS_URL, releaseArtifacts().previous, 'npm_previous_artifact_mismatch', 8],
+  ]) {
+    for (const bytes of [Buffer.from('short'), Buffer.concat([retained, Buffer.from('x')]), Buffer.from(retained).fill(0, 100, 101), url === BOOTSTRAP_URL ? releaseArtifacts().previous : releaseArtifacts().bootstrap]) {
+      const { fetchImpl, calls } = releaseFetch({ [url]: bytes });
+      const expected = url === BOOTSTRAP_URL && bytes.length > 8192 ? 'npm_bootstrap_tarball_unavailable' : category;
+      await expectReleaseError(releaseInput({ fetchImpl }), expected);
+      assert.equal(calls.length, requests);
+    }
   }
   const metadata = structuredClone(REGISTRY_METADATA);
   metadata.versions[BOOTSTRAP_VERSION].dist.tarball = 'https://attacker.invalid/steal';
+  metadata.versions['1.1.0'].dist.tarball = 'https://attacker.invalid/other';
   const { fetchImpl, calls } = releaseFetch({ [REGISTRY_METADATA_URL]: metadata });
   assert.equal((await checkReleasePreparation(releaseInput({ fetchImpl }))).ok, true);
-  assert.equal(calls.at(-1).path, BOOTSTRAP_URL);
+  assert.deepEqual(calls.slice(-2).map(call => call.path), [BOOTSTRAP_URL, PREVIOUS_URL]);
 });
 
 const REGISTRY_REQUESTS = [
   [REGISTRY_METADATA_URL, 1048576, 'npm_registry_metadata_unavailable'],
   [REGISTRY_TAGS_URL, 65536, 'npm_registry_tags_unavailable'],
   [BOOTSTRAP_URL, 8192, 'npm_bootstrap_tarball_unavailable'],
+  [PREVIOUS_URL, 32768, 'npm_previous_tarball_unavailable'],
 ];
 test('registry transport rejects non-200, malformed shapes, oversize, redirects and thrown failures without retries', async () => {
   for (const [endpoint, limit, category] of REGISTRY_REQUESTS) {
@@ -295,7 +331,7 @@ test('registry transport rejects non-200, malformed shapes, oversize, redirects 
       () => { const response = new Response('private response detail'); Object.defineProperty(response, 'redirected', { value: true }); return response; },
       () => new Response(null),
     ];
-    if (endpoint !== BOOTSTRAP_URL) failures.push(() => new Response('malformed'), () => new Response('null'), () => new Response('[]'));
+    if (![BOOTSTRAP_URL, PREVIOUS_URL].includes(endpoint)) failures.push(() => new Response('malformed'), () => new Response('null'), () => new Response('[]'));
     for (const failure of failures) {
       const { fetchImpl, calls } = releaseFetch({ [endpoint]: failure });
       await expectReleaseError(releaseInput({ fetchImpl }), category);
@@ -407,10 +443,14 @@ test('GitHub settings deadline ends a stalled fetch and stalled response body', 
 });
 
 test('release CLI emits only a category for source, owner-digest substitution and registry failures', () => {
-  const root = mkdtempSync(join(tmpdir(), 'release-cli-test-'));
+  const root = realpathSync(mkdtempSync(join(tmpdir(), 'release-cli-test-')));
   try {
     const artifact = join(root, 'candidate.tgz');
     const shim = join(root, 'fetch-fixture.mjs');
+    // Exercise the actual 2.0 CLI against isolated transport fixtures.
+    for (const directory of ['scripts', 'release', 'packages/intake-site-adapter']) mkdirSync(join(root, directory), { recursive: true });
+    for (const file of ['scripts/check-adapter-release.js', 'release/adapter-release-authority.json', 'packages/intake-site-adapter/package.json']) copyFileSync(new URL(`../${file}`, import.meta.url), join(root, file));
+    writeFileSync(join(root, 'package.json'), JSON.stringify({ type: 'module', private: true }));
     const fixture = {
       [`https://api.github.com/repos/${PUBLIC_REPOSITORY}`]: RELEASE_REPOSITORY,
       [`https://api.github.com/repos/${PUBLIC_REPOSITORY}/actions/runs/12345`]: RELEASE_RUN,
@@ -421,7 +461,7 @@ test('release CLI emits only a category for source, owner-digest substitution an
     // or dependency on the wall date occurs during this CLI failure fixture.
     writeFileSync(shim, `
       const WallDate = Date;
-      globalThis.Date = class extends WallDate { constructor(...args) { super(...(args.length ? args : ['2026-09-19T00:00:00Z'])); } };
+      globalThis.Date = class extends WallDate { constructor(...args) { super(...(args.length ? args : ['2026-09-29T00:00:00Z'])); } };
       const fixture = ${JSON.stringify(fixture)};
       globalThis.fetch = async (url, options) => {
         if (Object.hasOwn(fixture, url)) return Response.json(fixture[url]);
@@ -436,7 +476,7 @@ test('release CLI emits only a category for source, owner-digest substitution an
       [releaseArtifacts().usable, SOURCE_SHA, 'npm_registry_metadata_unavailable'],
     ]) {
       writeFileSync(artifact, bytes);
-      const result = spawnSync(process.execPath, ['--import', shim, fileURLToPath(new URL('../scripts/check-adapter-release.js', import.meta.url)), artifact], {
+      const result = spawnSync(process.execPath, ['--import', shim, join(root, 'scripts/check-adapter-release.js'), artifact], {
         encoding: 'utf8', timeout: 10000, env: {
           PATH: process.env.PATH ?? '/usr/bin:/bin', GITHUB_SHA: SOURCE_SHA,
           REVIEWED_SOURCE_SHA: reviewedSha, REVIEWED_TARBALL_SHA256: createHash('sha256').update(bytes).digest('hex'),

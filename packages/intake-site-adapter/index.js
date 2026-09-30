@@ -2,8 +2,8 @@ import { randomUUID, timingSafeEqual } from 'node:crypto';
 import { isIP } from 'node:net';
 import { FIELD_LIMITS, validCommand } from './validation.js';
 
-export const ADAPTER_VERSION = '1.1.0';
-export const CONTRACT_VERSION = 'intake-contract-v1';
+export const ADAPTER_VERSION = '2.0.0';
+export const CONTRACT_VERSION = 'intake-contract-v2';
 
 const INTAKE_ORIGIN = 'https://intake.fltechadventures.com';
 const TURNSTILE_VERIFY_URL = 'https://challenges.cloudflare.com/turnstile/v0/siteverify';
